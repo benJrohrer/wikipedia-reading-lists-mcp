@@ -83,6 +83,8 @@ Creating and using an OAuth 2 owner-only access token is the simplest option, an
     - Wanting to provide the full OAuth2 flow with in-browser authentication
     - If the token expires quickly, we may need to reconsider another option
 
+- The token is limited to en.wikipedia.org, with grants: basic rights and access private information
+
 ## References
 
 - [Reading Lists](https://www.mediawiki.org/wiki/Extension:ReadingLists)
