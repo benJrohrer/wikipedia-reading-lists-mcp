@@ -732,8 +732,14 @@ name = "wikipedia-reading-lists-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx2" },
     { name = "mcp", extra = ["cli"] },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "mcp", extras = ["cli"], specifier = ">=2.3.0" }]
+requires-dist = [
+    { name = "httpx2", specifier = ">=2.13.1" },
+    { name = "mcp", extras = ["cli"], specifier = ">=2.3.0" },
+    { name = "python-dotenv", specifier = ">=1.2.4" },
+]
