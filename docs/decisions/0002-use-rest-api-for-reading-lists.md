@@ -57,6 +57,7 @@ Therefore, for now, we will use the public URL and monitor for any changes to it
     - We must confirm whether or not a bearer token works for REST requests, the spec for which says a MediaWiki session cookie is required.
         - **RESOLVED**: A bearer token works on rest_v1, tested on 2026-10-18.
     - Writes document a csrf_token, we need to check if OAuth makes it unnecessary
+        - **RESOLVED**: Using a bearer token negates needing a csrf_token for writes, tested on 2026-10-18 against POST /data/lists/setup
 - What would make us revisit this decision:
     - /api/rest_v1/ may be phased out over time, and may require us changing the URL
     - The internal banner is removed from the ReadingLists modules of the Action API
