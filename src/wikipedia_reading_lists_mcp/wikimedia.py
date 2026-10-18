@@ -9,10 +9,12 @@ from pathlib import Path
 import httpx2
 from dotenv import load_dotenv
 
-# httpx2 always appends "/" to base_url, so the base is the /w/ directory
-# and requests name api.php (the Action API's single endpoint) explicitly.
-API_BASE_URL = "https://en.wikipedia.org/w/"
-ACTION_API = "api.php"
+# httpx2 always appends "/" to base_url, so the base is the domain root and
+# each request names its full path. The Action API is a single endpoint; the
+# reading-list REST endpoints live under the public rest_v1 prefix (ADR 0002).
+API_BASE_URL = "https://en.wikipedia.org/"
+ACTION_API = "w/api.php"
+READING_LISTS_API = "api/rest_v1/data/lists/"
 # Wikimedia's User-Agent policy asks for a client name, version, and contact.
 USER_AGENT = (
     "wikipedia-reading-lists-mcp/0.1.0 "
