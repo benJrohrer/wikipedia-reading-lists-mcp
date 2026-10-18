@@ -1,4 +1,4 @@
-"""HTTP client for the Wikimedia Action API, authenticated per ADR 0001."""
+"""HTTP client for the Wikimedia APIs (ADR 0001 auth, ADR 0002 API choice)."""
 
 import asyncio
 import logging
@@ -97,11 +97,44 @@ async def fetch_username(client: httpx2.AsyncClient) -> str:
     return userinfo["name"]
 
 
+async def fetch_lists(client: httpx2.AsyncClient) -> list[dict]:
+    """Return the current user's reading lists from GET /data/lists/.
+
+    Each list is a dict with at least "id", "name", "created", and "updated"
+    (rest_v1 spec, list_read schema). Raises if the request fails.
+    Follows `next` continuation tokens until all pages are fetched.
+    """
+    lists = []
+    query_params = {}
+    while True:
+        response = await client.get(READING_LISTS_API, params=query_params)
+        response.raise_for_status()
+
+        data = response.json()
+        lists.extend(data["lists"])
+
+        if "next" not in data:
+            break
+
+        next_token = data["next"]
+        # Guard in case we somehow get stuck in a next loop
+        if query_params.get("next") == next_token:
+            raise WikimediaAPIError(f"Received the same next token ({next_token}) twice while fetching lists.", "pagination")
+
+        query_params["next"] = data["next"]
+
+    return lists
+
+
 async def _smoke_test() -> None:
     async with make_client() as client:
         username = await fetch_username(client)
+        lists = await fetch_lists(client)
     # stdout carries the MCP protocol, so diagnostics go to stderr.
     print(f"Authenticated as: {username}", file=sys.stderr)
+    print(f"Reading lists ({len(lists)}):", file=sys.stderr)
+    for reading_list in lists:
+        print(f"  {reading_list['id']}: {reading_list['name']}", file=sys.stderr)
 
 
 if __name__ == "__main__":
