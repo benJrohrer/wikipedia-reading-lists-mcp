@@ -55,6 +55,7 @@ Therefore, for now, we will use the public URL and monitor for any changes to it
     - This will add another case of error & response handling, in addition to the Action API calls for userinfo that have already been added. (See [Issue #2](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/2))
     - The Reading Lists endpoint of the REST API is still unstable, and subject to change.
     - We must confirm whether or not a bearer token works for REST requests, the spec for which says a MediaWiki session cookie is required.
+        - **RESOLVED**: A bearer token works on rest_v1, tested on 2026-10-18.
     - Writes document a csrf_token, we need to check if OAuth makes it unnecessary
 - What would make us revisit this decision:
     - /api/rest_v1/ may be phased out over time, and may require us changing the URL
