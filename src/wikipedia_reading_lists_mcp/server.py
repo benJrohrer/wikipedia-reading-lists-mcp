@@ -35,6 +35,36 @@ async def lifespan(server: MCPServer) -> AsyncGenerator[AppContext]:
 
 mcp = MCPServer("wikipedia-reading-lists", lifespan=lifespan)
 
+ERROR_HINTS: dict[str, str] = {
+    "readinglists-db-error-not-set-up": ("The user has not opted in to the Reading List feature. "
+        "Tell the user to enable the feature. The server cannot do this yet."),
+    "network": "A network error occurred. Tell the user to check the internet connection.",
+    "timeout": ("The connection timed out. Retry once; if it fails again, tell the user to "
+        "check the internet connection."),
+    "401": ("The user's token is bad. The user must place a proper token in the WIKIMEDIA_ACCESS_TOKEN "
+        "environment variable or .env file. The server must be restarted for this to take effect."),
+    "403": ("The user's token does not grant them permission to do the requested action. "
+        "Tell the user to check if their token has the 'Access private information' grant."),
+    "429": "The connection is rate-limited. Wait and retry."
+}
+
+
+def _error_hint(code: str | None) -> str | None:
+    """Return the hint for an error code.
+
+    Looks up code in ERROR_HINTS dict to see if a hint is defined.
+    For 500 errors, returns generic internal error message. Otherwise returns None.
+    """
+    if not code:
+        return None
+
+    if code in ERROR_HINTS:
+        return ERROR_HINTS[code]
+    elif code.isdecimal() and code.startswith("5"):
+        return "Wikipedia returned an internal error. Try again later."
+    else:
+        return None
+
 
 def handle_wikimedia_errors(fn):
     """Re-raise WikimediaAPIError from a tool as ToolError, so the model sees why it failed."""
@@ -43,7 +73,9 @@ def handle_wikimedia_errors(fn):
         try:
             return await fn(*args, **kwds)
         except WikimediaAPIError as e:
-            raise ToolError(str(e)) from e
+            hint = _error_hint(e.code)
+            message = (str(e) + f" HINT: {hint}") if hint else str(e)
+            raise ToolError(message) from e
     return wrapper
 
 
