@@ -16,35 +16,71 @@ _Last updated: 2026-10-19_
   following pagination
   ([ADR 0002](decisions/0002-use-rest-api-for-reading-lists.md)).
 - **The server shares one HTTP client.** The server's lifespan creates the
-  client at startup and closes it on shutdown.
-- **Not yet:** tool errors reach the model only as a generic "Error executing
-  tool" message; there are no write tools and no automated tests.
+  client at startup and closes it on shutdown, and tools reach it through
+  `AppContext`
+  ([ADR 0004](decisions/0004-share-one-http-client-through-server-lifespan.md)).
+- **Tool errors reach the model with a reason and a next step.** HTTP errors,
+  network errors, and timeouts become `WikimediaAPIError`, and a decorator
+  turns those into `ToolError` with a hint keyed by error code
+  ([ADR 0005](decisions/0005-convert-wikimedia-errors-to-tool-errors.md)).
+  Checked through the Inspector with a bad token and with an account that
+  hasn't set up reading lists.
+- **Not yet:** no write tools, no setup tool, and no automated tests.
 
 ## Next up
 
-1. **Error handling in two layers**
-   ([#2](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/2)):
-   HTTP errors become `WikimediaAPIError`, then `ToolError` at the tool boundary,
-   so the model receives actionable messages.
-2. **ADR 0004:** the shared client's lifetime (server lifespan, exposed through
-   `AppContext`).
-3. **Setup tool**
+1. **Setup tool**
    ([ADR 0003](decisions/0003-reading-list-setup-as-confirmed-mcp-tool.md)):
-   `setup_reading_lists`, called only after the user agrees. Depends on #2.
-   Includes testing whether `ctx.elicit()` can ask the user directly.
+   `setup_reading_lists`, called only after the user agrees. Treat
+   `readinglists-db-error-already-set-up` as success, and update the
+   not-set-up hint in `ERROR_HINTS`, which currently says the server can't do
+   this. Includes testing whether `ctx.elicit()` can ask the user directly.
+2. **Automated tests with mocked Wikimedia responses**
+   ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)):
+   start with the error cases from #2 (mocked HTTP error bodies, transport
+   errors, and the hint lookup), which have so far only been checked by hand.
 
 ## Later
 
-- Automated tests with mocked Wikimedia responses
-  ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)).
 - Linting and formatting with ruff
   ([#3](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/3)).
+- Handle successful responses that aren't JSON
+  ([#4](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/4)).
 - Write tools: create lists, add and remove entries (through the `/batch`
   endpoints).
 
 ## Progress log
 
 Newest first.
+
+### 2026-10-19
+
+- Added this roadmap and an end-of-day routine for updating it, and documented
+  how to pass environment variables to the server through the Inspector.
+- Finished error handling in two layers
+  ([#2](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/2),
+  [ADR 0005](decisions/0005-convert-wikimedia-errors-to-tool-errors.md)):
+  - `wikimedia.py` turns every failed request into
+    `WikimediaAPIError(message, code)`.
+  - A decorator in `server.py` converts it to `ToolError`, the only exception
+    type whose message the MCP SDK forwards.
+- Chose to catch only network errors and timeouts, so that errors caused by our
+  own code still crash with a traceback, and to keep hints for the model in the
+  MCP layer, keyed by stable codes, not by message text.
+- Learned that Wikimedia's error bodies come in more shapes than expected:
+  - plain-text and HTML pages from the CDN
+  - a gateway 401 with JWT-specific text
+  - none of them sent as `application/problem+json`
+
+  So the parser decides the format from the body's fields, never from
+  `Content-Type`, and logs any format it doesn't recognize.
+- Confirmed through the Inspector that the not-set-up error reaches the model
+  with its hint, against a live account. This is the step ADR 0003's setup
+  flow depends on.
+- Recorded the shared-client decision
+  ([ADR 0004](decisions/0004-share-one-http-client-through-server-lifespan.md)).
+- Opened [#4](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/4)
+  for successful responses that aren't JSON, a gap noted in ADR 0005.
 
 ### 2026-10-18
 
