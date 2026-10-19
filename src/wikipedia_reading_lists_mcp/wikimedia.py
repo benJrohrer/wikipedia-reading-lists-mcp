@@ -70,10 +70,18 @@ async def _get(
 ) -> httpx2.Response:
     """Send a GET request and return the successful response.
 
-    Raises WikimediaAPIError if the response has an error status, so callers
-    never need to catch httpx2 exceptions.
+    Raises WikimediaAPIError if Wikipedia can't be reached or the response has
+    an error status, so callers never need to catch httpx2 exceptions.
     """
-    response = await client.get(path, params=params)
+    try:
+        response = await client.get(path, params=params)
+    except httpx2.NetworkError as e:
+        message = f"Couldn't reach Wikipedia (network error). Error: {str(e) or type(e).__name__}"
+        raise WikimediaAPIError(message, "network") from e
+    except httpx2.TimeoutException as e:
+        message = f"Couldn't reach Wikipedia (timeout). Error: {str(e) or type(e).__name__}"
+        raise WikimediaAPIError(message, "timeout") from e
+
     try:
         response.raise_for_status()
     except httpx2.HTTPStatusError as e:
@@ -90,9 +98,9 @@ async def _get(
                 details = error_data.get("detail") or error_data.get("httpReason")
                 if details:
                     message = details
-                    unexpeceted_format = False
+                    unexpected_format = False
 
-            if unexpeceted_format:
+            if unexpected_format:
                 logging.warning("%s (unexpected error format). JSON response begins: %.200s", message, error_data)
 
         except ValueError:
