@@ -11,7 +11,11 @@ reading list saved in the user's Wikipedia account.
 - MCP Python SDK (`mcp[cli]`).
 - Code lives in `src/wikipedia_reading_lists_mcp/`:
   - `server.py`: the MCP server and its tools/resources
+  - `wikimedia.py`: the HTTP client and Wikimedia API calls
 - Design decisions are recorded as ADRs in `docs/decisions/`.
+- Project status, next steps, and a dated progress log live in `docs/ROADMAP.md`.
+  Individual work items are GitHub issues; the roadmap links to them rather
+  than repeating their details.
 
 ## Commands
 
@@ -30,3 +34,17 @@ reading list saved in the user's Wikipedia account.
   them as clear API docs: what the tool does, when to use it, and what each
   parameter means.
 - Commit messages follow Conventional Commits.
+
+## End of day: update the roadmap
+
+When the user says they're wrapping up for the day, update `docs/ROADMAP.md`
+before the session ends:
+
+- Rewrite **Current status**, **Next up**, and **Later** so they reflect the
+  project as it stands now.
+- Add a **Progress log** entry for today at the top of the log (newest first).
+  Record what was decided, built, or learned, not every step. Link ADRs and
+  issues. Take dates from the git log and issue history, not from memory.
+- Update the "Last updated" line.
+- The user reviews the changes before committing. Suggested commit:
+  `docs: update roadmap for YYYY-MM-DD`.
