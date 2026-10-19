@@ -65,10 +65,49 @@ def make_client() -> httpx2.AsyncClient:
     )
 
 
+async def _get(
+    client: httpx2.AsyncClient, path: str, params: dict | None = None
+) -> httpx2.Response:
+    """Send a GET request and return the successful response.
+
+    Raises WikimediaAPIError if the response has an error status, so callers
+    never need to catch httpx2 exceptions.
+    """
+    response = await client.get(path, params=params)
+    try:
+        response.raise_for_status()
+    except httpx2.HTTPStatusError as e:
+        # defaults for parsing error
+        code = str(e.response.status_code)
+        message = f"Wikipedia returned HTTP {code} {e.response.reason_phrase}"
+
+        # handle json error responses, with more specific code/message
+        try:
+            error_data = e.response.json()
+            unexpected_format = True
+            if isinstance(error_data, dict):
+                code = error_data.get("errorKey") or code
+                details = error_data.get("detail") or error_data.get("httpReason")
+                if details:
+                    message = details
+                    unexpeceted_format = False
+
+            if unexpeceted_format:
+                logging.warning("%s (unexpected error format). JSON response begins: %.200s", message, error_data)
+
+        except ValueError:
+            # for non json response log the beginning of the error body
+            logging.warning("%s (non-JSON response). Response body begins: %.200s", message, e.response.text)
+
+        raise WikimediaAPIError(message, code) from e
+    return response
+
+
 async def fetch_username(client: httpx2.AsyncClient) -> str:
     """Return the username the token authenticates as.
 
-    Raises if the request fails or the API reports an anonymous user.
+    Raises WikimediaAPIError if the request fails or the API reports an
+    anonymous user.
     """
     query_params = {
         "action": "query",
@@ -76,9 +115,7 @@ async def fetch_username(client: httpx2.AsyncClient) -> str:
         "format": "json",
         "formatversion": "2",
     }
-    response = await client.get(ACTION_API, params=query_params)
-
-    response.raise_for_status()
+    response = await _get(client, ACTION_API, query_params)
 
     data = response.json()
     if "warnings" in data:
@@ -101,14 +138,13 @@ async def fetch_lists(client: httpx2.AsyncClient) -> list[dict]:
     """Return the current user's reading lists from GET /data/lists/.
 
     Each list is a dict with at least "id", "name", "created", and "updated"
-    (rest_v1 spec, list_read schema). Raises if the request fails.
-    Follows `next` continuation tokens until all pages are fetched.
+    (rest_v1 spec, list_read schema). Raises WikimediaAPIError if the request
+    fails. Follows `next` continuation tokens until all pages are fetched.
     """
     lists = []
     query_params = {}
     while True:
-        response = await client.get(READING_LISTS_API, params=query_params)
-        response.raise_for_status()
+        response = await _get(client, READING_LISTS_API, query_params)
 
         data = response.json()
         lists.extend(data["lists"])
