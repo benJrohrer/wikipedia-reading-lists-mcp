@@ -1,5 +1,6 @@
 """MCP server exposing the user's Wikipedia reading lists as tools."""
 
+import functools
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -7,10 +8,15 @@ from dataclasses import dataclass
 import httpx2
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
+from mcp.server.mcpserver.exceptions import ToolError
 
 # Absolute import: MCP clients may run this file as a script, where relative
 # imports fail.
-from wikipedia_reading_lists_mcp.wikimedia import fetch_lists, make_client
+from wikipedia_reading_lists_mcp.wikimedia import (
+    WikimediaAPIError,
+    fetch_lists,
+    make_client,
+)
 
 
 @dataclass
@@ -30,7 +36,19 @@ async def lifespan(server: MCPServer) -> AsyncGenerator[AppContext]:
 mcp = MCPServer("wikipedia-reading-lists", lifespan=lifespan)
 
 
+def handle_wikimedia_errors(fn):
+    """Re-raise WikimediaAPIError from a tool as ToolError, so the model sees why it failed."""
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwds):
+        try:
+            return await fn(*args, **kwds)
+        except WikimediaAPIError as e:
+            raise ToolError(str(e)) from e
+    return wrapper
+
+
 @mcp.tool()
+@handle_wikimedia_errors
 async def list_reading_lists(ctx: Context) -> list[dict]:
     """List the user's Wikipedia reading lists.
 
