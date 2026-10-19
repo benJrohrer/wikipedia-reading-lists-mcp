@@ -23,6 +23,11 @@ reading list saved in the user's Wikipedia account.
 - Add a dependency: `uv add <package>`
 - Test in the MCP Inspector: `uv run mcp dev src/wikipedia_reading_lists_mcp/server.py`
 - Run the server directly (stdio): `uv run python src/wikipedia_reading_lists_mcp/server.py`
+- Test with an environment override (e.g. a bad token). `mcp dev` can't pass
+  environment variables, and the Inspector filters the server's environment, so
+  call the Inspector directly. Add `--cli --method tools/call --tool-name <name>`
+  after `inspector` to call a tool from the terminal:
+  `npx @modelcontextprotocol/inspector -e WIKIMEDIA_ACCESS_TOKEN=notarealtoken uv run --directory "$PWD" python src/wikipedia_reading_lists_mcp/server.py`
 
 ## Conventions
 
