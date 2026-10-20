@@ -14,6 +14,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 # imports fail.
 from wikipedia_reading_lists_mcp.wikimedia import (
     WikimediaAPIError,
+    fetch_entries,
     fetch_lists,
     make_client,
     setup
@@ -38,8 +39,15 @@ mcp = MCPServer("wikipedia-reading-lists", lifespan=lifespan)
 
 ERROR_HINTS: dict[str, str] = {
     "readinglists-db-error-not-set-up": ("The user has not opted in to the Reading List feature. "
-        "Tell the user to enable the feature. The server cannot do this yet."),
+        "To enable the feature, ask the user if you can opt in to this feature on their behalf. "
+        "Then, and only with their explicit aproval, can you use the setup_reading_lists tool to "
+        "enable this feature."),
+    "readinglists-db-error-no-such-list": ("No list exists with the given id. Call "
+        "list_reading_lists to get all lists with their ids. Then you can use an id from that list to "
+        "reference it where a list id is required."),
     "network": "A network error occurred. Tell the user to check the internet connection.",
+    "list-id-non-decimal": ("The list id supplied was a non-decimal string. Use decimal list id from "
+        "list_reading_lists for referencing a list."),
     "timeout": ("The connection timed out. Retry once; if it fails again, tell the user to "
         "check the internet connection."),
     "401": ("The user's token is bad. The user must place a proper token in the WIKIMEDIA_ACCESS_TOKEN "
@@ -83,7 +91,7 @@ def handle_wikimedia_errors(fn):
 @mcp.tool()
 @handle_wikimedia_errors
 async def setup_reading_lists(ctx: Context) -> bool:
-    """Opt the user in to the Reading Lists feature.
+    """Opt the user in to Wikipedia's Reading Lists feature.
     
     Only use this tool if you have explicit permission of the user.
     Use this to enable the reading list feature on the users account.
@@ -106,6 +114,19 @@ async def list_reading_lists(ctx: Context) -> list[dict]:
     """
     app: AppContext = ctx.request_context.lifespan_context
     return await fetch_lists(app.client)
+
+
+@mcp.tool()
+@handle_wikimedia_errors
+async def list_entries(ctx: Context, id: str) -> dict:
+    """List all entries for the user's Wikipedia reading list with the given id.
+    
+    Use this to list all articles in the reading list denoted by the given id.
+    Returns every entry (all pages are fetched), each with 'id', 'project', 'title', 'created', and 'updated'
+    Use 'title' to lookup articles in the given 'project'.
+    """
+    app: AppContext = ctx.request_context.lifespan_context
+    return await fetch_entries(app.client, id)
 
 
 if __name__ == "__main__":

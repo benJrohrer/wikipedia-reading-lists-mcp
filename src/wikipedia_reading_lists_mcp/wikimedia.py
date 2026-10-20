@@ -239,6 +239,37 @@ async def fetch_lists(client: httpx2.AsyncClient) -> list[dict]:
     return lists
 
 
+async def fetch_entries(client: httpx2.AsyncClient, list_id: str) -> list[dict]:
+    """Return the entries on the user's reading list with the given list_id.
+
+    Returns every entry (all pages are fetched), each with 'id', 'project', 'title', 'created', and 'updated'.
+    Raises WikimediaAPIError if the request fails. Follows `next` continuation tokens until all pages are fetched.
+    """
+
+    if not list_id.isdecimal():
+        raise WikimediaAPIError(f"List ID: '{list_id}' was non-decimal. List ID must be a decimal string.", "list-id-non-decimal")
+    
+    LIST_ENTRIES_API = READING_LISTS_API + f"{list_id}/entries/"
+    entries = []
+    query_params = {}
+    while True:
+        response = await _get(client, LIST_ENTRIES_API, query_params)
+
+        data = response.json()
+        entries.extend(data["entries"])
+
+        if "next" not in data:
+            break
+
+        next_token = data["next"]
+        # Guard in case we somehow get stuck in a next loop
+        if query_params.get("next") == next_token:
+            raise WikimediaAPIError(f"Received the same next token ({next_token}) twice while fetching lists.", "pagination")
+
+        query_params["next"] = data["next"]
+
+    return entries
+
 async def _smoke_test() -> None:
     async with make_client() as client:
         username = await fetch_username(client)
