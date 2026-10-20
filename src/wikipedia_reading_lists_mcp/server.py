@@ -9,6 +9,7 @@ import httpx2
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import ToolAnnotations
 
 # Absolute import: MCP clients may run this file as a script, where relative
 # imports fail.
@@ -17,7 +18,7 @@ from wikipedia_reading_lists_mcp.wikimedia import (
     fetch_entries,
     fetch_lists,
     make_client,
-    setup
+    opt_in,
 )
 
 
@@ -40,14 +41,12 @@ mcp = MCPServer("wikipedia-reading-lists", lifespan=lifespan)
 ERROR_HINTS: dict[str, str] = {
     "readinglists-db-error-not-set-up": ("The user has not opted in to the Reading List feature. "
         "To enable the feature, ask the user if you can opt in to this feature on their behalf. "
-        "Then, and only with their explicit aproval, can you use the setup_reading_lists tool to "
+        "Then, and only with their explicit approval, can you use the setup_reading_lists tool to "
         "enable this feature."),
     "readinglists-db-error-no-such-list": ("No list exists with the given id. Call "
         "list_reading_lists to get all lists with their ids. Then you can use an id from that list to "
         "reference it where a list id is required."),
     "network": "A network error occurred. Tell the user to check the internet connection.",
-    "list-id-non-decimal": ("The list id supplied was a non-decimal string. Use decimal list id from "
-        "list_reading_lists for referencing a list."),
     "timeout": ("The connection timed out. Retry once; if it fails again, tell the user to "
         "check the internet connection."),
     "401": ("The user's token is bad. The user must place a proper token in the WIKIMEDIA_ACCESS_TOKEN "
@@ -88,21 +87,34 @@ def handle_wikimedia_errors(fn):
     return wrapper
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        idempotent_hint=True,
+        destructive_hint=False,
+        open_world_hint=False,
+    )
+)
 @handle_wikimedia_errors
 async def setup_reading_lists(ctx: Context) -> bool:
     """Opt the user in to Wikipedia's Reading Lists feature.
     
     Only use this tool if you have explicit permission of the user.
-    Use this to enable the reading list feature on the users account.
-    Returns true if the user already was opted-in or if opt-in was succesful.
-    Otherwise, raises WikimediaAPIError.
+    Use this to enable the reading list feature on the user's account.
+    Returns true if and only if opt-in was successful.
+    Returns false if the user was already opted in. Do not treat a False return as meaning
+    the user is not opted in - it just means that they were already opted in.
+    Otherwise, raises a ToolError. Treat any bool return value as meaning the user is opted-in.
     """
     app: AppContext = ctx.request_context.lifespan_context
-    return await setup(app.client)
+    return await opt_in(app.client)
 
     
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        read_only_hint=True,
+        open_world_hint=False,
+    )
+)
 @handle_wikimedia_errors
 async def list_reading_lists(ctx: Context) -> list[dict]:
     """List the user's Wikipedia reading lists.
@@ -116,17 +128,22 @@ async def list_reading_lists(ctx: Context) -> list[dict]:
     return await fetch_lists(app.client)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        read_only_hint=True,
+        open_world_hint=False,
+    )
+)
 @handle_wikimedia_errors
-async def list_entries(ctx: Context, id: str) -> dict:
-    """List all entries for the user's Wikipedia reading list with the given id.
+async def list_entries(ctx: Context, list_id: int) -> list[dict]:
+    """List all entries for the user's Wikipedia reading list with the given id from list_reading_lists.
     
     Use this to list all articles in the reading list denoted by the given id.
     Returns every entry (all pages are fetched), each with 'id', 'project', 'title', 'created', and 'updated'
     Use 'title' to lookup articles in the given 'project'.
     """
     app: AppContext = ctx.request_context.lifespan_context
-    return await fetch_entries(app.client, id)
+    return await fetch_entries(app.client, list_id)
 
 
 if __name__ == "__main__":

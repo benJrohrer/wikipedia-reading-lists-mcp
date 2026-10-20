@@ -64,16 +64,15 @@ def make_client() -> httpx2.AsyncClient:
         timeout=10.0,
     )
 
-def handle_httpx2_errors(fn):
-    """Re-raise httpx2 errors as WikimediaAPIErrors"""
-    
+
 async def _get(
     client: httpx2.AsyncClient, path: str, params: dict | None = None
 ) -> httpx2.Response:
     """Send a GET request and return the successful response.
 
-    Raises WikimediaAPIError if Wikipedia can't be reached or the response has
-    an error status, so callers never need to catch httpx2 exceptions.
+    Raises WikimediaAPIError if Wikipedia can't be reached (network errors, timeouts)
+    or the response has an error status. Other httpx2 transport errors propogate 
+    on purpose (see ADR 0005).
     """
     try:
         response = await client.get(path, params=params)
@@ -112,13 +111,15 @@ async def _get(
         raise WikimediaAPIError(message, code) from e
     return response
 
+
 async def _write(
         client: httpx2.AsyncClient, path: str, params: dict | None = None, body: dict | None = None
 ) -> httpx2.Response:
     """Send a POST request and return the successful response.
     
-        Raises WikimediaAPIError if Wikipedia can't be reached or the response has
-        an error status, so callers never need to catch httpx2 exceptions.
+        Raises WikimediaAPIError if Wikipedia can't be reached (network errors, timeouts)
+        or the response has an error status. Other httpx2 transport errors propogate 
+        on purpose (see ADR 0005).
     """
 
     try:
@@ -160,20 +161,21 @@ async def _write(
     return response
     
     
-async def setup(client: httpx2.AsyncClient) -> bool:
+async def opt_in(client: httpx2.AsyncClient) -> bool:
     """Opt-in the user to the Reading Lists feature.
     
-    Returns true, if the the request succeeded or the feature was already set up.
-    Otherwise, raises WikimediaAPIError.
+    Returns true if the request succeeded.
+    Return false if the user was already opted in.
+    Otherwise, raises a WikimediaAPIError
     """
 
-    ALREADY_SET_UP = "readinglists-db-error-already-set-up"
-    SETUP_API = READING_LISTS_API + "setup"
+    already_set_up = "readinglists-db-error-already-set-up"
+    setup_api = READING_LISTS_API + "setup"
     try:
-        response = await _write(client, SETUP_API)
+        await _write(client, setup_api)
     except WikimediaAPIError as e:
-        if e.code == ALREADY_SET_UP:
-            return True
+        if e.code == already_set_up:
+            return False
         else:
             raise
 
@@ -239,15 +241,12 @@ async def fetch_lists(client: httpx2.AsyncClient) -> list[dict]:
     return lists
 
 
-async def fetch_entries(client: httpx2.AsyncClient, list_id: str) -> list[dict]:
+async def fetch_entries(client: httpx2.AsyncClient, list_id: int) -> list[dict]:
     """Return the entries on the user's reading list with the given list_id.
 
     Returns every entry (all pages are fetched), each with 'id', 'project', 'title', 'created', and 'updated'.
     Raises WikimediaAPIError if the request fails. Follows `next` continuation tokens until all pages are fetched.
     """
-
-    if not list_id.isdecimal():
-        raise WikimediaAPIError(f"List ID: '{list_id}' was non-decimal. List ID must be a decimal string.", "list-id-non-decimal")
     
     LIST_ENTRIES_API = READING_LISTS_API + f"{list_id}/entries/"
     entries = []
@@ -264,11 +263,12 @@ async def fetch_entries(client: httpx2.AsyncClient, list_id: str) -> list[dict]:
         next_token = data["next"]
         # Guard in case we somehow get stuck in a next loop
         if query_params.get("next") == next_token:
-            raise WikimediaAPIError(f"Received the same next token ({next_token}) twice while fetching lists.", "pagination")
+            raise WikimediaAPIError(f"Received the same next token ({next_token}) twice while fetching entries.", "pagination")
 
         query_params["next"] = data["next"]
 
     return entries
+
 
 async def _smoke_test() -> None:
     async with make_client() as client:
