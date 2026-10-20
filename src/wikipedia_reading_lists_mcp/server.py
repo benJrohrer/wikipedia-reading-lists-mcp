@@ -16,6 +16,7 @@ from wikipedia_reading_lists_mcp.wikimedia import (
     WikimediaAPIError,
     fetch_lists,
     make_client,
+    setup
 )
 
 
@@ -79,6 +80,20 @@ def handle_wikimedia_errors(fn):
     return wrapper
 
 
+@mcp.tool()
+@handle_wikimedia_errors
+async def setup_reading_lists(ctx: Context) -> bool:
+    """Opt the user in to the Reading Lists feature.
+    
+    Only use this tool if you have explicit permission of the user.
+    Use this to enable the reading list feature on the users account.
+    Returns true if the user already was opted-in or if opt-in was succesful.
+    Otherwise, raises WikimediaAPIError.
+    """
+    app: AppContext = ctx.request_context.lifespan_context
+    return await setup(app.client)
+
+    
 @mcp.tool()
 @handle_wikimedia_errors
 async def list_reading_lists(ctx: Context) -> list[dict]:

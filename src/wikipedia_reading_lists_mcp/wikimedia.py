@@ -64,7 +64,9 @@ def make_client() -> httpx2.AsyncClient:
         timeout=10.0,
     )
 
-
+def handle_httpx2_errors(fn):
+    """Re-raise httpx2 errors as WikimediaAPIErrors"""
+    
 async def _get(
     client: httpx2.AsyncClient, path: str, params: dict | None = None
 ) -> httpx2.Response:
@@ -109,6 +111,73 @@ async def _get(
 
         raise WikimediaAPIError(message, code) from e
     return response
+
+async def _write(
+        client: httpx2.AsyncClient, path: str, params: dict | None = None, body: dict | None = None
+) -> httpx2.Response:
+    """Send a POST request and return the successful response.
+    
+        Raises WikimediaAPIError if Wikipedia can't be reached or the response has
+        an error status, so callers never need to catch httpx2 exceptions.
+    """
+
+    try:
+        response = await client.post(path, params=params, data=body)
+    except httpx2.NetworkError as e:
+        message = f"Couldn't reach Wikipedia (network error). Error: {str(e) or type(e).__name__}"
+        raise WikimediaAPIError(message, "network") from e
+    except httpx2.TimeoutException as e:
+        message = f"Couldn't reach Wikipedia (timeout). Error: {str(e) or type(e).__name__}"
+        raise WikimediaAPIError(message, "timeout") from e
+    
+    try:
+        response.raise_for_status()
+    except httpx2.HTTPStatusError as e:
+        # defaults for parsing error
+        code = str(e.response.status_code)
+        message = f"Wikipedia returned HTTP {code} {e.response.reason_phrase}"
+
+        # handle json error responses, with more specific code/message
+        try:
+            error_data = e.response.json()
+            unexpected_format = True
+            if isinstance(error_data, dict):
+                code = error_data.get("errorKey") or code
+                details = error_data.get("detail") or error_data.get("httpReason")
+                if details:
+                    message = details
+                    unexpected_format = False
+
+            if unexpected_format:
+                logging.warning("%s (unexpected error format). JSON response begins: %.200s", message, error_data)
+
+        except ValueError:
+            # for non json response log the beginning of the error body
+            logging.warning("%s (non-JSON response). Response body begins: %.200s", message, e.response.text)
+
+        raise WikimediaAPIError(message, code) from e
+
+    return response
+    
+    
+async def setup(client: httpx2.AsyncClient) -> bool:
+    """Opt-in the user to the Reading Lists feature.
+    
+    Returns true, if the the request succeeded or the feature was already set up.
+    Otherwise, raises WikimediaAPIError.
+    """
+
+    ALREADY_SET_UP = "readinglists-db-error-already-set-up"
+    SETUP_API = READING_LISTS_API + "setup"
+    try:
+        response = await _write(client, SETUP_API)
+    except WikimediaAPIError as e:
+        if e.code == ALREADY_SET_UP:
+            return True
+        else:
+            raise
+
+    return True
 
 
 async def fetch_username(client: httpx2.AsyncClient) -> str:
