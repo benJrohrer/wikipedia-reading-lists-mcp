@@ -1,6 +1,6 @@
 # 0003: Reading list setup as a confirmed MCP tool
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-18
 
 ## Context
@@ -51,6 +51,8 @@ Creating an MCP tool that the LLM calls provides visibility in to the process, h
     - already-set-up errors can be treated as a success
 - What this makes harder, or the costs we accept:
     - This solution does rely heavily on a cooperative LLM, that follows the tool docstring and error message (both indicating to ask for user consent before calling the setup tool). The server will have no way of ensuring that the user actually consented to opting-in. We accept this consequence given that the impact is low - it only enables the feature, and probably creates a default list - but it can't be undone without teardown, which deletes data (for a freshly set-up account, probably just the created default list). A repeated or unnecessary call has no effect, so the worst case is a single opt-in.
+    - Update 2026-10-20:
+        - Marked setup_reading_lists tool as non-destructive in annotation hint. It may reduce the client's caution around calling the function, but the consent instruction in the  docstring and the not-set-up hint are still in place. Consent relies on them instead of the annotation. The reason for this is accuracy - opt-in only writes and deletes nothing, it is also idempotent.
 - What would make us revisit this decision:
     - If Wikimedia changes the opt-in model
     - If the MCP Client stops prompting for tool approval
