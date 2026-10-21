@@ -1,0 +1,19 @@
+# Runs ruff on staged Python files before each commit. Install the hook once
+# per clone with `uv run pre-commit install`.
+#
+# Local hooks call the ruff pinned in uv.lock, so the hook, the editor, and
+# `uv run ruff` always use the same version and the settings in pyproject.toml.
+repos:
+  - repo: local
+    hooks:
+      # Lint first: --fix may change code that the formatter then lays out.
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]

@@ -19,3 +19,16 @@ wikipedia-reading-lists-mcp = "wikipedia_reading_lists_mcp.server:main"
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.7.0",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+# extend-select: keep ruff's default rules as they evolve; upgrades may add findings.
+extend-select = ["E", "W", "F", "I", "UP", "B", "SIM"]
