@@ -1,6 +1,6 @@
 # 0005: Convert Wikimedia errors to tool errors with next-step hints
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-19
 
 ## Context

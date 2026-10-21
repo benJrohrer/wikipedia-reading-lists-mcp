@@ -1,6 +1,6 @@
 # 0004: Share one HTTP client through the server lifespan
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-19 (decision implemented 2026-10-18 in `8b7afcb`)
 
 ## Context
