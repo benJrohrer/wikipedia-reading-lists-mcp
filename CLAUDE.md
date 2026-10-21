@@ -39,17 +39,3 @@ reading list saved in the user's Wikipedia account.
   them as clear API docs: what the tool does, when to use it, and what each
   parameter means.
 - Commit messages follow Conventional Commits.
-
-## End of day: update the roadmap
-
-When the user says they're wrapping up for the day, update `docs/ROADMAP.md`
-before the session ends:
-
-- Rewrite **Current status**, **Next up**, and **Later** so they reflect the
-  project as it stands now.
-- Add a **Progress log** entry for today at the top of the log (newest first).
-  Record what was decided, built, or learned, not every step. Link ADRs and
-  issues. Take dates from the git log and issue history, not from memory.
-- Update the "Last updated" line.
-- The user reviews the changes before committing. Suggested commit:
-  `docs: update roadmap for YYYY-MM-DD`.
