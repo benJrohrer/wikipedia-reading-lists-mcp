@@ -5,9 +5,12 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Literal
 
 import httpx2
 from dotenv import load_dotenv
+
+type HttpMethod = Literal["GET", "POST"]
 
 # httpx2 always appends "/" to base_url, so the base is the domain root and
 # each request names its full path. The Action API is a single endpoint; the
@@ -65,102 +68,77 @@ def make_client() -> httpx2.AsyncClient:
     )
 
 
+async def _request(
+    client: httpx2.AsyncClient,
+    method: HttpMethod,
+    url: str,
+    params: dict | None = None,
+    json: dict | None = None,
+) -> httpx2.Response:
+    """Send an HTTP request with the given method and return the successful response.
+
+    Raises WikimediaAPIError if Wikipedia can't be reached (network errors, timeouts)
+    or the response has an error status. Other httpx2 transport errors propagate
+    on purpose (see ADR 0005). Should be called by helper functions which specify the method.
+    """
+    try:
+        response = await client.request(method=method, url=url, params=params, json=json)
+    except httpx2.NetworkError as e:
+        message = f"Couldn't reach Wikipedia (network error). Error: {str(e) or type(e).__name__}"
+        raise WikimediaAPIError(message, "network") from e
+    except httpx2.TimeoutException as e:
+        message = f"Couldn't reach Wikipedia (timeout). Error: {str(e) or type(e).__name__}"
+        raise WikimediaAPIError(message, "timeout") from e
+
+    try:
+        response.raise_for_status()
+    except httpx2.HTTPStatusError as e:
+        # defaults for parsing error
+        code = str(e.response.status_code)
+        message = f"Wikipedia returned HTTP {code} {e.response.reason_phrase}"
+
+        # handle json error responses, with more specific code/message
+        try:
+            error_data = e.response.json()
+            unexpected_format = True
+            if isinstance(error_data, dict):
+                code = error_data.get("errorKey") or code
+                details = error_data.get("detail") or error_data.get("httpReason")
+                if details:
+                    message = details
+                    unexpected_format = False
+
+            if unexpected_format:
+                logging.warning("%s (unexpected error format). JSON response begins: %.200s", message, error_data)
+
+        except ValueError:
+            # for non json response log the beginning of the error body
+            logging.warning("%s (non-JSON response). Response body begins: %.200s", message, e.response.text)
+
+        raise WikimediaAPIError(message, code) from e
+    return response
+
+
 async def _get(
-    client: httpx2.AsyncClient, path: str, params: dict | None = None
+    client: httpx2.AsyncClient, url: str, params: dict | None = None
 ) -> httpx2.Response:
     """Send a GET request and return the successful response.
 
-    Raises WikimediaAPIError if Wikipedia can't be reached (network errors, timeouts)
-    or the response has an error status. Other httpx2 transport errors propogate 
-    on purpose (see ADR 0005).
+    Wraps _request with method='GET'. Raises WikimediaAPIError as _request does.
     """
-    try:
-        response = await client.get(path, params=params)
-    except httpx2.NetworkError as e:
-        message = f"Couldn't reach Wikipedia (network error). Error: {str(e) or type(e).__name__}"
-        raise WikimediaAPIError(message, "network") from e
-    except httpx2.TimeoutException as e:
-        message = f"Couldn't reach Wikipedia (timeout). Error: {str(e) or type(e).__name__}"
-        raise WikimediaAPIError(message, "timeout") from e
-
-    try:
-        response.raise_for_status()
-    except httpx2.HTTPStatusError as e:
-        # defaults for parsing error
-        code = str(e.response.status_code)
-        message = f"Wikipedia returned HTTP {code} {e.response.reason_phrase}"
-
-        # handle json error responses, with more specific code/message
-        try:
-            error_data = e.response.json()
-            unexpected_format = True
-            if isinstance(error_data, dict):
-                code = error_data.get("errorKey") or code
-                details = error_data.get("detail") or error_data.get("httpReason")
-                if details:
-                    message = details
-                    unexpected_format = False
-
-            if unexpected_format:
-                logging.warning("%s (unexpected error format). JSON response begins: %.200s", message, error_data)
-
-        except ValueError:
-            # for non json response log the beginning of the error body
-            logging.warning("%s (non-JSON response). Response body begins: %.200s", message, e.response.text)
-
-        raise WikimediaAPIError(message, code) from e
-    return response
+    return await _request(client=client, method="GET", url=url, params=params)
 
 
-async def _write(
-        client: httpx2.AsyncClient, path: str, params: dict | None = None, body: dict | None = None
+async def _post(
+    client: httpx2.AsyncClient, url: str, params: dict | None = None, json: dict | None = None
 ) -> httpx2.Response:
     """Send a POST request and return the successful response.
-    
-        Raises WikimediaAPIError if Wikipedia can't be reached (network errors, timeouts)
-        or the response has an error status. Other httpx2 transport errors propogate 
-        on purpose (see ADR 0005).
+
+    Wraps _request with method='POST'. Raises WikimediaAPIError as _request does.
     """
+    return await _request(client=client, method="POST", url=url, params=params, json=json)
 
-    try:
-        response = await client.post(path, params=params, data=body)
-    except httpx2.NetworkError as e:
-        message = f"Couldn't reach Wikipedia (network error). Error: {str(e) or type(e).__name__}"
-        raise WikimediaAPIError(message, "network") from e
-    except httpx2.TimeoutException as e:
-        message = f"Couldn't reach Wikipedia (timeout). Error: {str(e) or type(e).__name__}"
-        raise WikimediaAPIError(message, "timeout") from e
-    
-    try:
-        response.raise_for_status()
-    except httpx2.HTTPStatusError as e:
-        # defaults for parsing error
-        code = str(e.response.status_code)
-        message = f"Wikipedia returned HTTP {code} {e.response.reason_phrase}"
 
-        # handle json error responses, with more specific code/message
-        try:
-            error_data = e.response.json()
-            unexpected_format = True
-            if isinstance(error_data, dict):
-                code = error_data.get("errorKey") or code
-                details = error_data.get("detail") or error_data.get("httpReason")
-                if details:
-                    message = details
-                    unexpected_format = False
-
-            if unexpected_format:
-                logging.warning("%s (unexpected error format). JSON response begins: %.200s", message, error_data)
-
-        except ValueError:
-            # for non json response log the beginning of the error body
-            logging.warning("%s (non-JSON response). Response body begins: %.200s", message, e.response.text)
-
-        raise WikimediaAPIError(message, code) from e
-
-    return response
-    
-    
 async def opt_in(client: httpx2.AsyncClient) -> bool:
     """Opt-in the user to the Reading Lists feature.
     
@@ -172,7 +150,7 @@ async def opt_in(client: httpx2.AsyncClient) -> bool:
     already_set_up = "readinglists-db-error-already-set-up"
     setup_api = READING_LISTS_API + "setup"
     try:
-        await _write(client, setup_api)
+        await _post(client, setup_api)
     except WikimediaAPIError as e:
         if e.code == already_set_up:
             return False
