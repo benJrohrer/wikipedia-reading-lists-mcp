@@ -1,6 +1,6 @@
 # 0001: Authenticate with an owner-only OAuth 2.0 consumer
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-16
 
 ## Context

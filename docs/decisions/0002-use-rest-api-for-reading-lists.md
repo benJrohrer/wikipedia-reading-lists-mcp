@@ -1,6 +1,6 @@
 # 0002: Use the REST API for reading lists
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-17
 
 ## Context
