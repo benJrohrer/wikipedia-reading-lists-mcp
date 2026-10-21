@@ -146,5 +146,10 @@ async def list_entries(ctx: Context, list_id: int) -> list[dict]:
     return await fetch_entries(app.client, list_id)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Run the server over stdio. Entry point for the console script."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

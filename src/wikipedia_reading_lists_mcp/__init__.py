@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from wikipedia-reading-lists-mcp!")
+"""Wikipedia Reading Lists MCP server."""

@@ -1,7 +1,7 @@
 [project]
 name = "wikipedia-reading-lists-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "An MCP server that connects Claude to your Wikipedia reading lists."
 readme = "README.md"
 authors = [
     { name = "benJrohrer", email = "benJrohrer@gmail.com" }
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-wikipedia-reading-lists-mcp = "wikipedia_reading_lists_mcp:main"
+wikipedia-reading-lists-mcp = "wikipedia_reading_lists_mcp.server:main"
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
