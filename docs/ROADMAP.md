@@ -29,31 +29,35 @@ _Last updated: 2026-10-20_
   ([ADR 0005](decisions/0005-convert-wikimedia-errors-to-tool-errors.md)).
   Checked through the Inspector with a bad token and with an account that
   hasn't set up reading lists.
+- **All requests go through one function.** `_request()` sends any HTTP method
+  and handles errors in one place; `_get()` and `_post()` set the method, and a
+  `Literal` type limits which methods can be passed
+  ([#5](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/5)).
+  Request bodies are sent as JSON.
+- **Linting and formatting are automatic.** Ruff checks and formats the code
+  through a pre-commit hook that runs the ruff version pinned in `uv.lock`.
+  Settings live in `pyproject.toml`; the reasons for them are in
+  [#3](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/3).
+- **The README has a first draft.**
 - **Not yet:** no tools that create lists or add entries, and no automated
   tests.
 
 ## Next up
 
-1. **Combine the duplicated request code**
-   ([#5](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/5)):
-   one function that sends any request and handles errors, with a small helper
-   for each HTTP method. This comes before the write tools so that request
-   bodies are handled once, in the shared function. Part of this is checking
-   whether the write endpoints expect JSON or form-encoded bodies.
-2. **Create a list**: a tool for `POST /data/lists/`.
-3. **Add entries to a list**: a tool for `POST /data/lists/{id}/entries/`.
+1. **Create a list**: a tool for `POST /data/lists/`. The first request that
+   sends a body, so it also confirms that the endpoint accepts JSON (the spec
+   gives the content type as `*/*`).
+2. **Add entries to a list**: a tool for `POST /data/lists/{id}/entries/`.
    Still open: whether to add one entry per call or use the `/batch` endpoints
    (`/data/lists/batch`, `/data/lists/{id}/entries/batch`), which would let a
    whole reading list be saved in one call.
-4. **Open issues:**
+3. **Open issues:**
    - Automated tests with mocked Wikimedia responses
      ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)).
      Start with the error cases (mocked HTTP error bodies, transport errors,
      and the hint lookup), which have so far only been checked by hand.
    - Handle successful responses that aren't JSON
      ([#4](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/4)).
-   - Linting and formatting with ruff
-     ([#3](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/3)).
 
 ## Later
 
@@ -86,6 +90,30 @@ Newest first.
   to combine the duplicated request code in `_get()` and `_write()`, and
   scheduled it before the write tools so request bodies are handled in one
   place.
+- Accepted [ADR 0004](decisions/0004-share-one-http-client-through-server-lifespan.md)
+  and [ADR 0005](decisions/0005-convert-wikimedia-errors-to-tool-errors.md),
+  and wrote a first draft of the README.
+- Finished [#5](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/5):
+  - All requests now go through `_request()`, using httpx2's
+    `client.request()`, with small `_get()` and `_post()` helpers.
+  - `_write()` became `_post()`, and bodies switched from form encoding to JSON
+    because the write endpoints take nested objects.
+  - A `Literal` type for the HTTP method lets a type checker catch a misspelled
+    method before the code runs.
+- Finished [#3](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/3),
+  adding ruff with the default rules plus `E`, `W`, `I`, `UP`, `B`, and `SIM`,
+  an 88-character line limit, and `ruff format`:
+  - The pre-commit hook is a local hook running `uv run ruff`, so the hook,
+    the editor, and the terminal all use the version pinned in `uv.lock`.
+  - Chose `extend-select` so ruff's own default rules come along as they
+    change. Upgrading from 0.14 to 0.17 had already added `LOG` and `PERF`
+    findings.
+  - Applied the formatter in its own commit and listed it in
+    `.git-blame-ignore-revs`, so blame skips it. Then fixed the remaining
+    findings: long lines, a module-level `logger` in place of root-logger
+    calls, and `.values()` in place of `.items()`.
+- Decided that development-tooling choices are recorded in their issue rather
+  than in an ADR. ADRs are kept for decisions about the server itself.
 
 ### 2026-10-19
 
