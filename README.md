@@ -143,8 +143,7 @@ claude mcp add --transport stdio wikipedia-reading-lists -- \
 Then start `claude`, run `/mcp` to confirm the server is connected, and ask
 about your reading lists.
 
-#### Other MCP clients (Claude Desktop and others that use an `mcpServers`
-config):
+#### Other MCP clients:
 
 ```json
 {
@@ -232,11 +231,7 @@ let anyone connect their own account without creating a token by hand.
 
 ## How this was built
 
-I built this project to sharpen my development skills, and to learn
-AI-assisted development deliberately. This project is **NOT** vibe-coded,
-and my expertise and discernment are used throughout. I used Claude to expand
-my learning, improve my skills, and develop efficiently. I worked with
-[Claude Code](https://code.claude.com):
+I built this project to sharpen my development skills, and to learn AI-assisted development deliberately: every design decision and its tradeoffs are mine, and Claude served as a collaborator and reviewer.
 
 - **Design came first.** Each decision was talked through in Claude Code's plan
   mode, where it can research and discuss but not edit, and then written up by
