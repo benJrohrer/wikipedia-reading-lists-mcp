@@ -41,27 +41,31 @@ mcp = MCPServer("wikipedia-reading-lists", lifespan=lifespan)
 ERROR_HINTS: dict[str, str] = {
     "readinglists-db-error-not-set-up": (
         "The user has not opted in to the Reading List feature. "
-        "To enable the feature, ask the user if you can opt in to this feature on their behalf. "
-        "Then, and only with their explicit approval, can you use the setup_reading_lists tool to "
-        "enable this feature."
+        "To enable the feature, ask the user if you can opt in to this feature on "
+        "their behalf. Then, and only with their explicit approval, can you use the "
+        "setup_reading_lists tool to enable this feature."
     ),
     "readinglists-db-error-no-such-list": (
         "No list exists with the given id. Call "
-        "list_reading_lists to get all lists with their ids. Then you can use an id from that list to "
-        "reference it where a list id is required."
+        "list_reading_lists to get all lists with their ids. Then you can use an id "
+        "from that list to reference it where a list id is required."
     ),
-    "network": "A network error occurred. Tell the user to check the internet connection.",
+    "network": (
+        "A network error occurred. Tell the user to check the internet connection."
+    ),
     "timeout": (
         "The connection timed out. Retry once; if it fails again, tell the user to "
         "check the internet connection."
     ),
     "401": (
-        "The user's token is bad. The user must place a proper token in the WIKIMEDIA_ACCESS_TOKEN "
-        "environment variable or .env file. The server must be restarted for this to take effect."
+        "The user's token is bad. The user must place a proper token in the "
+        "WIKIMEDIA_ACCESS_TOKEN environment variable or .env file. The server must be "
+        "restarted for this to take effect."
     ),
     "403": (
         "The user's token does not grant them permission to do the requested action. "
-        "Tell the user to check if their token has the 'Access private information' grant."
+        "Tell the user to check if their token has the 'Access private information' "
+        "grant."
     ),
     "429": "The connection is rate-limited. Wait and retry.",
 }
@@ -85,7 +89,10 @@ def _error_hint(code: str | None) -> str | None:
 
 
 def handle_wikimedia_errors(fn):
-    """Re-raise WikimediaAPIError from a tool as ToolError, so the model sees why it failed."""
+    """Re-raise WikimediaAPIError from a tool as ToolError.
+
+    Re-raising the error as a ToolError ensures the model sees why it failed.
+    """
 
     @functools.wraps(fn)
     async def wrapper(*args, **kwds):
@@ -113,9 +120,11 @@ async def setup_reading_lists(ctx: Context) -> bool:
     Only use this tool if you have explicit permission of the user.
     Use this to enable the reading list feature on the user's account.
     Returns true if and only if opt-in was successful.
-    Returns false if the user was already opted in. Do not treat a False return as meaning
-    the user is not opted in - it just means that they were already opted in.
-    Otherwise, raises a ToolError. Treat any bool return value as meaning the user is opted-in.
+    Returns false if the user was already opted in. Do not treat a False
+    return as meaning the user is not opted in.
+    It just means that they were already opted in.
+    Otherwise, raises a ToolError.
+    Treat any bool return value as meaning the user is opted-in.
     """
     app: AppContext = ctx.request_context.lifespan_context
     return await opt_in(app.client)
@@ -148,10 +157,12 @@ async def list_reading_lists(ctx: Context) -> list[dict]:
 )
 @handle_wikimedia_errors
 async def list_entries(ctx: Context, list_id: int) -> list[dict]:
-    """List all entries for the user's Wikipedia reading list with the given id from list_reading_lists.
+    """List all entries for the user's Wikipedia reading list with the given id.
 
+    Get list_id from another tool such as list_reading_lists.
     Use this to list all articles in the reading list denoted by the given id.
-    Returns every entry (all pages are fetched), each with 'id', 'project', 'title', 'created', and 'updated'
+    Returns every entry (all pages are fetched), each with
+    'id', 'project', 'title', 'created', and 'updated'.
     Use 'title' to lookup articles in the given 'project'.
     """
     app: AppContext = ctx.request_context.lifespan_context

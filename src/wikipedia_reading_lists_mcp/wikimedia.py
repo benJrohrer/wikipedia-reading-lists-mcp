@@ -23,6 +23,7 @@ USER_AGENT = (
     "wikipedia-reading-lists-mcp/0.1.0 "
     "(https://github.com/benJrohrer/wikipedia-reading-lists-mcp)"
 )
+logger = logging.getLogger(__name__)
 
 # Resolve .env from the project root, not the working directory, because
 # MCP clients may launch the server from anywhere.
@@ -31,7 +32,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 
 class WikimediaAPIError(Exception):
-    """Raised when the Wikimedia API reports an error or returns an unexpected response."""
+    """Raised when Wikimedia API reports an error or returns an unexpected response."""
 
     def __init__(self, message: str, code: str | None = None) -> None:
         super().__init__(message)
@@ -81,14 +82,18 @@ async def _request(
 
     Raises WikimediaAPIError if Wikipedia can't be reached (network errors, timeouts)
     or the response has an error status. Other httpx2 transport errors propagate
-    on purpose (see ADR 0005). Should be called by helper functions which specify the method.
+    on purpose (see ADR 0005).
+    Should be called by helper functions which specify the method.
     """
     try:
         response = await client.request(
             method=method, url=url, params=params, json=json
         )
     except httpx2.NetworkError as e:
-        message = f"Couldn't reach Wikipedia (network error). Error: {str(e) or type(e).__name__}"
+        message = (
+            "Couldn't reach Wikipedia (network error). "
+            f"Error: {str(e) or type(e).__name__}"
+        )
         raise WikimediaAPIError(message, "network") from e
     except httpx2.TimeoutException as e:
         message = (
@@ -115,7 +120,7 @@ async def _request(
                     unexpected_format = False
 
             if unexpected_format:
-                logging.warning(
+                logger.warning(
                     "%s (unexpected error format). JSON response begins: %.200s",
                     message,
                     error_data,
@@ -123,7 +128,7 @@ async def _request(
 
         except ValueError:
             # for non json response log the beginning of the error body
-            logging.warning(
+            logger.warning(
                 "%s (non-JSON response). Response body begins: %.200s",
                 message,
                 e.response.text,
@@ -195,8 +200,8 @@ async def fetch_username(client: httpx2.AsyncClient) -> str:
 
     data = response.json()
     if "warnings" in data:
-        for _, value in data["warnings"].items():
-            logging.warning(value["warnings"])
+        for value in data["warnings"].values():
+            logger.warning(value["warnings"])
 
     if "error" in data:
         error = data["error"]
@@ -232,7 +237,10 @@ async def fetch_lists(client: httpx2.AsyncClient) -> list[dict]:
         # Guard in case we somehow get stuck in a next loop
         if query_params.get("next") == next_token:
             raise WikimediaAPIError(
-                f"Received the same next token ({next_token}) twice while fetching lists.",
+                (
+                    f"Received the same next token ({next_token}) "
+                    "twice while fetching lists."
+                ),
                 "pagination",
             )
 
@@ -244,8 +252,10 @@ async def fetch_lists(client: httpx2.AsyncClient) -> list[dict]:
 async def fetch_entries(client: httpx2.AsyncClient, list_id: int) -> list[dict]:
     """Return the entries on the user's reading list with the given list_id.
 
-    Returns every entry (all pages are fetched), each with 'id', 'project', 'title', 'created', and 'updated'.
-    Raises WikimediaAPIError if the request fails. Follows `next` continuation tokens until all pages are fetched.
+    Returns every entry (all pages are fetched), each with
+    'id', 'project', 'title', 'created', and 'updated'.
+    Raises WikimediaAPIError if the request fails. Follows `next` continuation tokens
+    until all pages are fetched.
     """
 
     LIST_ENTRIES_API = READING_LISTS_API + f"{list_id}/entries/"
@@ -264,7 +274,10 @@ async def fetch_entries(client: httpx2.AsyncClient, list_id: int) -> list[dict]:
         # Guard in case we somehow get stuck in a next loop
         if query_params.get("next") == next_token:
             raise WikimediaAPIError(
-                f"Received the same next token ({next_token}) twice while fetching entries.",
+                (
+                    f"Received the same next token ({next_token}) "
+                    "twice while fetching entries."
+                ),
                 "pagination",
             )
 
