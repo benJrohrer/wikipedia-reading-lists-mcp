@@ -4,17 +4,21 @@ Status of the Wikipedia Reading Lists MCP server: what works, what's next, and
 how it got here. Design decisions are recorded as ADRs in
 [`docs/decisions/`](decisions/); individual work items are GitHub issues.
 
-_Last updated: 2026-10-19_
+_Last updated: 2026-10-20_
 
 ## Current status
 
 - **Authentication works.** An owner-only OAuth 2.0 bearer token, limited to
   English Wikipedia, authenticates both the Action API and the REST API
   ([ADR 0001](decisions/0001-authenticate-with-owner-only-oauth2.md)).
-- **Reading lists can be read.** The `list_reading_lists` MCP tool returns all
-  of the user's lists through the public `/api/rest_v1/data/lists/` endpoint,
-  following pagination
-  ([ADR 0002](decisions/0002-use-rest-api-for-reading-lists.md)).
+- **Reading lists and their entries can be read.** `list_reading_lists` returns
+  all of the user's lists through the public `/api/rest_v1/data/lists/`
+  endpoint, and `list_entries` returns every article on one list. Both follow
+  pagination ([ADR 0002](decisions/0002-use-rest-api-for-reading-lists.md)).
+- **Users can opt in to Reading Lists.** `setup_reading_lists` enables the
+  feature, and Claude calls it only after the user agrees. An account that is
+  already set up counts as success
+  ([ADR 0003](decisions/0003-reading-list-setup-as-confirmed-mcp-tool.md)).
 - **The server shares one HTTP client.** The server's lifespan creates the
   client at startup and closes it on shutdown, and tools reach it through
   `AppContext`
@@ -25,33 +29,63 @@ _Last updated: 2026-10-19_
   ([ADR 0005](decisions/0005-convert-wikimedia-errors-to-tool-errors.md)).
   Checked through the Inspector with a bad token and with an account that
   hasn't set up reading lists.
-- **Not yet:** no write tools, no setup tool, and no automated tests.
+- **Not yet:** no tools that create lists or add entries, and no automated
+  tests.
 
 ## Next up
 
-1. **Setup tool**
-   ([ADR 0003](decisions/0003-reading-list-setup-as-confirmed-mcp-tool.md)):
-   `setup_reading_lists`, called only after the user agrees. Treat
-   `readinglists-db-error-already-set-up` as success, and update the
-   not-set-up hint in `ERROR_HINTS`, which currently says the server can't do
-   this. Includes testing whether `ctx.elicit()` can ask the user directly.
-2. **Automated tests with mocked Wikimedia responses**
-   ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)):
-   start with the error cases from #2 (mocked HTTP error bodies, transport
-   errors, and the hint lookup), which have so far only been checked by hand.
+1. **Combine the duplicated request code**
+   ([#5](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/5)):
+   one function that sends any request and handles errors, with a small helper
+   for each HTTP method. This comes before the write tools so that request
+   bodies are handled once, in the shared function. Part of this is checking
+   whether the write endpoints expect JSON or form-encoded bodies.
+2. **Create a list**: a tool for `POST /data/lists/`.
+3. **Add entries to a list**: a tool for `POST /data/lists/{id}/entries/`.
+   Still open: whether to add one entry per call or use the `/batch` endpoints
+   (`/data/lists/batch`, `/data/lists/{id}/entries/batch`), which would let a
+   whole reading list be saved in one call.
+4. **Open issues:**
+   - Automated tests with mocked Wikimedia responses
+     ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)).
+     Start with the error cases (mocked HTTP error bodies, transport errors,
+     and the hint lookup), which have so far only been checked by hand.
+   - Handle successful responses that aren't JSON
+     ([#4](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/4)).
+   - Linting and formatting with ruff
+     ([#3](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/3)).
 
 ## Later
 
-- Linting and formatting with ruff
-  ([#3](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/3)).
-- Handle successful responses that aren't JSON
-  ([#4](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/4)).
-- Write tools: create lists, add and remove entries (through the `/batch`
-  endpoints).
+- **Find which lists contain an article**: a tool for
+  `GET /data/lists/pages/{project}/{title}`, which returns the user's lists
+  that include that article.
+- **Maybe: delete tools** for whole lists (`DELETE /data/lists/{id}`) and
+  single entries (`DELETE /data/lists/{id}/entries/{entry_id}`). Not decided
+  yet. These are the first destructive tools, so they would need a decision
+  about confirmation, like the one in ADR 0003.
 
 ## Progress log
 
 Newest first.
+
+### 2026-10-20
+
+- Added `setup_reading_lists`, which opts the user in to Reading Lists, and
+  accepted [ADR 0003](decisions/0003-reading-list-setup-as-confirmed-mcp-tool.md).
+  The tool is annotated as non-destructive and idempotent, because opting in
+  writes data but deletes none. Consent comes from the docstring and the
+  not-set-up hint, not from the annotation.
+- Added `list_entries`, which returns every article on a list, following
+  pagination.
+- Fixed `list_entries` types, the `opt_in` return value, and tool annotations.
+- Moved `main()` into `server.py` as the console-script entry point.
+- Planned the write tools: create a list and add entries next, with a
+  find-lists-by-article lookup and possible delete tools later.
+- Opened [#5](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/5)
+  to combine the duplicated request code in `_get()` and `_write()`, and
+  scheduled it before the write tools so request bodies are handled in one
+  place.
 
 ### 2026-10-19
 
