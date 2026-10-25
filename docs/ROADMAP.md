@@ -4,7 +4,7 @@ Status of the Wikipedia Reading Lists MCP server: what works, what's next, and
 how it got here. Design decisions are recorded as ADRs in
 [`docs/decisions/`](decisions/); individual work items are GitHub issues.
 
-_Last updated: 2026-10-20_
+_Last updated: 2026-10-24_
 
 ## Current status
 
@@ -19,6 +19,16 @@ _Last updated: 2026-10-20_
   feature, and Claude calls it only after the user agrees. An account that is
   already set up counts as success
   ([ADR 0003](decisions/0003-reading-list-setup-as-confirmed-mcp-tool.md)).
+  Server instructions also tell the model to make sure the user is opted in
+  before creating lists.
+- **Reading lists can be created.** `create_reading_lists` takes one or more
+  lists (name and optional description) and posts them to
+  `/data/lists/batch`. The API overwrites the description of a list that
+  already has the requested name, so the tool fetches the existing lists first
+  and leaves those names out. It returns `created`, `excluded` (the existing
+  lists, with their ids), and `updated` (a backstop for the rare case where a
+  list was still overwritten)
+  ([ADR 0006](decisions/0006-filter-duplicate-names-when-creating-lists.md)).
 - **The server shares one HTTP client.** The server's lifespan creates the
   client at startup and closes it on shutdown, and tools reach it through
   `AppContext`
@@ -38,19 +48,20 @@ _Last updated: 2026-10-20_
   through a pre-commit hook that runs the ruff version pinned in `uv.lock`.
   Settings live in `pyproject.toml`; the reasons for them are in
   [#3](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/3).
-- **The README has a first draft.**
-- **Not yet:** no tools that create lists or add entries, and no automated
-  tests.
+  In VS Code, ruff also formats on save, using the same pinned version.
+- **The README covers** what the server does, how it works, setup, and the
+  design decisions.
+- **Not yet:** no tool to add articles to a list, and no automated tests.
 
 ## Next up
 
-1. **Create a list**: a tool for `POST /data/lists/`. The first request that
-   sends a body, so it also confirms that the endpoint accepts JSON (the spec
-   gives the content type as `*/*`).
-2. **Add entries to a list**: a tool for `POST /data/lists/{id}/entries/`.
-   Still open: whether to add one entry per call or use the `/batch` endpoints
-   (`/data/lists/batch`, `/data/lists/{id}/entries/batch`), which would let a
-   whole reading list be saved in one call.
+1. **Add entries to a list**: a tool for `/data/lists/{id}/entries/batch`.
+   Following ADR 0006, likely one tool that takes one or more entries. Still to
+   find out by testing: what the API does with an article that is already on
+   the list, and whether that needs the same kind of filter.
+2. **Open question:** the server instructions overlap with the not-set-up
+   hint and may make the model ask about opting in more often than needed.
+   Decide whether to keep them, and update ADR 0003 if so.
 3. **Open issues:**
    - Automated tests with mocked Wikimedia responses
      ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)).
@@ -68,10 +79,52 @@ _Last updated: 2026-10-20_
   single entries (`DELETE /data/lists/{id}/entries/{entry_id}`). Not decided
   yet. These are the first destructive tools, so they would need a decision
   about confirmation, like the one in ADR 0003.
+- **Maybe: a tool to change a list's description**, if users want it. ADR 0006
+  prefers a separate tool over an overwrite option on create.
+- **Maybe: elicitation** on a name conflict, on top of the filter, for clients
+  that support it. Deferred in ADR 0006.
+- **A type checker** (pyright or mypy). `ListSpec` and `CreateListsResult` are
+  `TypedDict`s, which only a type checker checks inside our own code. A
+  tooling choice, so it would go in an issue.
 
 ## Progress log
 
 Newest first.
+
+### 2026-10-24
+
+- Added `create_reading_lists` and accepted
+  [ADR 0006](decisions/0006-filter-duplicate-names-when-creating-lists.md):
+  - Tested on 2026-10-22: the batch endpoint doesn't reject a name that already
+    exists. It overwrites that list's description, or clears it if none is
+    sent, and returns `"duplicate": true`. Name matching is case-sensitive.
+  - Chose to check existing names on the server and leave them out, returning
+    them as `excluded`, over documenting the overwrite, an `overwrite`
+    parameter, or elicitation. The docstring also asks the model to check
+    `list_reading_lists` first, so it can raise similar names with the user.
+  - With the filter, `destructive_hint=False` and `idempotent_hint=True` are
+    accurate, apart from a short race between the check and the POST.
+  - An empty `batch` returns HTTP 400, so no request is sent when every name
+    was filtered out. A name repeated within one request keeps its last copy.
+- Merged the planned single and batch create tools into one tool that takes a
+  list, because the API only has a batch endpoint and two overlapping tools
+  made the model choose between them.
+- Replaced `list[tuple[str, str]]` with `TypedDict`s (`ListSpec`,
+  `CreateListsResult`), so the tool's input and output schemas name their
+  fields. Chose TypedDict over Pydantic because the items are plain dicts sent
+  straight to the API.
+- Added server instructions about opting in before creating lists.
+- Learned that the API sandbox can't send this request: it sends the spec's
+  `*/*` as `Content-Type` and gets HTTP 415. Our client sends
+  `application/json`, which settles the earlier question of whether the
+  endpoint accepts JSON.
+- Set up format on save with ruff in VS Code, kept out of the repo; noted in
+  [#3](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/3#issuecomment-6393486868).
+  Formatting before staging avoids pre-commit failures on partial commits.
+
+### 2026-10-21
+
+- Added the MIT License, accepted ADRs 0001 and 0002, and edited the README.
 
 ### 2026-10-20
 
