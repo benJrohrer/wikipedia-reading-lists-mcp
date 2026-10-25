@@ -36,7 +36,16 @@ async def lifespan(server: MCPServer) -> AsyncGenerator[AppContext]:
         yield AppContext(client)
 
 
-mcp = MCPServer("wikipedia-reading-lists", lifespan=lifespan)
+SERVER_INSTRUCTIONS = (
+    "Before creating reading lists, the user's account must be opted in to the "
+    "Reading Lists feature. If you're unsure whether it is, ask the user for "
+    "permission and call setup_reading_lists first. A False return means they "
+    "were already opted in."
+)
+
+mcp = MCPServer(
+    "wikipedia-reading-lists", lifespan=lifespan, instructions=SERVER_INSTRUCTIONS
+)
 
 ERROR_HINTS: dict[str, str] = {
     "readinglists-db-error-not-set-up": (
