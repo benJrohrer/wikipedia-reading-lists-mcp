@@ -14,9 +14,12 @@ from mcp.types import ToolAnnotations
 # Absolute import: MCP clients may run this file as a script, where relative
 # imports fail.
 from wikipedia_reading_lists_mcp.wikimedia import (
+    CreateEntryResult,
     CreateListsResult,
+    EntrySpec,
     ListSpec,
     WikimediaAPIError,
+    create_entries,
     create_lists,
     fetch_entries,
     fetch_lists,
@@ -61,6 +64,21 @@ ERROR_HINTS: dict[str, str] = {
         "No list exists with the given id. Call "
         "list_reading_lists to get all lists with their ids. Then you can use an id "
         "from that list to reference it where a list id is required."
+    ),
+    "readinglists-db-error-no-such-project": (
+        "The given project name is not a recognized Wikimedia project. A project name "
+        "is the base url such as 'https://en.wikipedia.org' for the English language "
+        "wikipedia project. This error interrupts the create_list_entries tool. Any "
+        "entries before the entry with an incorrect project name were created, and any "
+        "entries following the entry that caused this error will not have been "
+        "created. Use the correct project name for any entries you were trying to "
+        "create that used the incorrect project name and submit the whole batch again. "
+        "After this subsequent call, and in this case only, ignore the duplicate flag "
+        "on the responses which came before the first entry with the incorrect "
+        "project, and do not report these to the user as it may just indicate that "
+        "these response were added in the preceding call before the incorrect project "
+        "name. Notify the user of the updated project name and for which entries it "
+        "was used for."
     ),
     "network": (
         "A network error occurred. Tell the user to check the internet connection."
@@ -218,6 +236,39 @@ async def create_reading_lists(
     """
     app: AppContext = ctx.request_context.lifespan_context
     return await create_lists(app.client, lists)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        read_only_hint=False,
+        open_world_hint=False,
+        idempotent_hint=True,
+        destructive_hint=False,
+    )
+)
+@handle_wikimedia_errors
+async def create_list_entries(
+    ctx: Context, list_id: int, entries: list[EntrySpec]
+) -> list[CreateEntryResult]:
+    """Create one or more entries on the reading list defined by list_id.
+
+    Only use this tool with the explicit permission of the user.
+    This creates one or more entries on the reading list defined by list_id
+    with the given project and title. list_id comes from other tools such as
+    list_reading_lists or create_reading_lists. The title of the page to be added is the
+    ending of its URL in the given project, and the project is the base of the URL. For
+    example, for the page at https://en.wikipedia.org/wiki/Claude_(AI), the project is
+    'https://en.wikipedia.org' and the title is 'Claude_(AI)'. Use this schema to create
+    reading list entries from wikipedia links. Use the decoded title with no fragment.
+    If an entry already exists on the list it will not be added again nor updated.
+    The return value will be a list of created entries or duplicates. Entries identified
+    as duplicates will have their duplicate field set to true. Notify the user of any
+    duplicate entries. This tool can have partial failures: if one entry in the batch
+    causes an error, all entries before it will have been created, but the errant entry
+    and others after it will not have been created.
+    """
+    app: AppContext = ctx.request_context.lifespan_context
+    return await create_entries(app.client, list_id, entries)
 
 
 def main() -> None:

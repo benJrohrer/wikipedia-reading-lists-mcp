@@ -49,12 +49,31 @@ class WikimediaAnonError(WikimediaAPIError):
         )
 
 
+class CreateEntryResult(TypedDict):
+    """A dictionary with fields for an entry created or duplicate response."""
+
+    id: int
+    listId: int
+    project: str
+    title: str
+    created: str
+    updated: str
+    duplicate: bool
+
+
 class CreateListsResult(TypedDict):
     """A dictionary with the lists of created, updated, and excluded reading lists."""
 
     created: list[dict]
     updated: list[dict]
     excluded: list[dict]
+
+
+class EntrySpec(TypedDict):
+    """An entry to create on a reading list."""
+
+    project: str
+    title: str
 
 
 class ListSpec(TypedDict):
@@ -359,6 +378,30 @@ async def create_lists(
                 created.append(list_response)
 
     return {"created": created, "updated": updated, "excluded": excluded}
+
+
+async def create_entries(
+    client: httpx2.AsyncClient,
+    list_id: int,
+    entries_to_create: list[EntrySpec],
+) -> list[CreateEntryResult]:
+    """Create the entries defined by the list of EntrySpecs.
+
+    Returns the list of entries created and any duplicates.
+    """
+
+    if not entries_to_create:
+        return []
+
+    create_entry_batch_api = READING_LISTS_API + f"{list_id}/entries/batch"
+    batch = {"batch": entries_to_create}
+    response = await _post(client, create_entry_batch_api, json=batch)
+    data = response.json()
+    if "entries" not in data:
+        raise WikimediaAPIError(
+            "No entries returned after entry creation.", "no-entries-created"
+        )
+    return data["entries"]
 
 
 async def _smoke_test() -> None:
