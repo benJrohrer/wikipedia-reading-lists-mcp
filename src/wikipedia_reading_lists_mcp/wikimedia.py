@@ -274,11 +274,11 @@ async def fetch_entries(client: httpx2.AsyncClient, list_id: int) -> list[dict]:
     until all pages are fetched.
     """
 
-    LIST_ENTRIES_API = READING_LISTS_API + f"{list_id}/entries/"
+    list_entries_api = READING_LISTS_API + f"{list_id}/entries/"
     entries = []
     query_params = {}
     while True:
-        response = await _get(client, LIST_ENTRIES_API, query_params)
+        response = await _get(client, list_entries_api, query_params)
 
         data = response.json()
         entries.extend(data["entries"])
