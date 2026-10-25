@@ -350,9 +350,10 @@ async def create_lists(
             if list_response.get("duplicate"):
                 updated.append(list_response)
                 logger.warning(
-                    "A reading list was unexpectedly updated during a call to "
-                    "create_lists.",
-                    extra={"updated list": list_response},
+                    "Reading list %r (id %s) was unexpectedly updated during a "
+                    "call to create_lists (duplicate name).",
+                    list_response["name"],
+                    list_response["id"],
                 )
             else:
                 created.append(list_response)
