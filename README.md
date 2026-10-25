@@ -10,8 +10,8 @@ build a reading list in your Wikipedia account for you to pick up later on your
 phone or in the browser.
 
 > **Status:** early and working. The server can read your lists and their
-> articles and can turn on the Reading Lists feature for your account. Tools
-> that create lists and add articles are next. See the
+> articles, create new lists, and turn on the Reading Lists feature for your
+> account. Adding articles to a list is next. See the
 > [roadmap](docs/ROADMAP.md) for details.
 
 ## What it can do
@@ -21,6 +21,7 @@ phone or in the browser.
 | `list_reading_lists` | Returns every reading list on your account, with its id, name, and dates | No |
 | `list_entries` | Returns every article on one list, by list id | No |
 | `setup_reading_lists` | Turns on Wikipedia's Reading Lists feature for your account. Claude only calls it after asking you | Yes, once |
+| `create_reading_lists` | Creates one or more empty lists, each with a name and an optional description. Names that already exist are left out and returned, so an existing list is never overwritten | Yes, adds lists |
 
 A session might go like this:
 
@@ -77,9 +78,11 @@ considered, and the tradeoffs.
 | [0003](docs/decisions/0003-reading-list-setup-as-confirmed-mcp-tool.md) | Make setup a tool the model calls only with the user's consent, and never expose teardown | Setup writes to the user's account; teardown would delete every list and entry, with no use case here |
 | [0004](docs/decisions/0004-share-one-http-client-through-server-lifespan.md) | Share one HTTP client through the server lifespan | Reuses connections across calls and closes the client reliably, using the mechanism the MCP SDK provides |
 | [0005](docs/decisions/0005-convert-wikimedia-errors-to-tool-errors.md) | Convert Wikimedia errors to tool errors with next-step hints | The MCP SDK forwards only `ToolError` messages to the client. A decorator keeps the SDK out of the HTTP layer, and catching only network errors and timeouts keeps real bugs visible as crashes |
+| [0006](docs/decisions/0006-filter-duplicate-names-when-creating-lists.md) | Leave out existing names when creating lists, and return them to the model | The API silently overwrites the description of a list with the same name. Filtering on the server protects the user's data without relying on the model, and keeps the tool's non-destructive annotation accurate |
 
 Some things learned along the way are recorded in the ADRs too. Bearer-token
-writes need no CSRF token. Calling setup twice is harmless. Wikimedia's error
+writes need no CSRF token. Calling setup twice is harmless. Creating a list
+with an existing name updates that list instead of failing. Wikimedia's error
 responses come in several shapes (JSON, plain text, and HTML from the CDN), so
 the error parser decides the format from the body's fields rather than from
 `Content-Type`.
@@ -210,8 +213,9 @@ CLAUDE.md          # project context for Claude Code sessions
   registered, works only on English Wikipedia. Using it for other people means
   each person registering their own token, or the full OAuth flow listed under
   the roadmap.
-- **Read-only, apart from setup.** You can't yet create lists or add or remove
-  articles. These are next, through the REST API's `/batch` endpoints.
+- **Lists can be created, but not yet filled.** You can't yet add or remove
+  articles. Adding them is next, through the REST API's entries `/batch`
+  endpoint.
 - **No automated tests yet.** Error handling has been checked by hand through
   the Inspector, against a live account. A test suite with mocked Wikimedia
   responses is planned ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)).
@@ -225,8 +229,7 @@ Current status, next steps, and a dated log of what was built and learned are
 in [`docs/ROADMAP.md`](docs/ROADMAP.md). Work items are tracked as
 [GitHub issues](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues).
 
-Next up: write tools (create a list, add articles), then the test suite, then
-linting with ruff. Further out, a hosted version with a full OAuth flow would
+Next up: a tool to add articles to a list, then the test suite. Further out, a hosted version with a full OAuth flow would
 let anyone connect their own account without creating a token by hand.
 
 ## How this was built
