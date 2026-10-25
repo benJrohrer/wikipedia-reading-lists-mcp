@@ -10,9 +10,9 @@ build a reading list in your Wikipedia account for you to pick up later on your
 phone or in the browser.
 
 > **Status:** early and working. The server can read your lists and their
-> articles, create new lists, and turn on the Reading Lists feature for your
-> account. Adding articles to a list is next. See the
-> [roadmap](docs/ROADMAP.md) for details.
+> articles, create new lists, add articles to them, and turn on the Reading
+> Lists feature for your account. See the [roadmap](docs/ROADMAP.md) for
+> details.
 
 ## What it can do
 
@@ -22,6 +22,7 @@ phone or in the browser.
 | `list_entries` | Returns every article on one list, by list id | No |
 | `setup_reading_lists` | Turns on Wikipedia's Reading Lists feature for your account. Claude only calls it after asking you | Yes, once |
 | `create_reading_lists` | Creates one or more empty lists, each with a name and an optional description. Names that already exist are left out and returned, so an existing list is never overwritten | Yes, adds lists |
+| `create_list_entries` | Adds one or more articles to a list, by list id. Articles already on the list are left alone and marked as duplicates | Yes, adds articles |
 
 A session might go like this:
 
@@ -30,6 +31,23 @@ A session might go like this:
 > **Claude:** *(calls `list_reading_lists`, then `list_entries` on your
 > "History" list)* You have four articles saved on it: Justinian I, the Nika
 > riots, Hagia Sophia, and the Fourth Crusade…
+
+Or, to turn a conversation into a new list:
+
+> **You:** That was a great overview of how bird migration works. Can you
+> save the articles you mentioned to a new reading list? Ten or so is plenty.
+>
+> **Claude:** Here's what I'd add to a new list called "Bird Migration":
+> Bird migration, Arctic tern, Bar-tailed godwit, Magnetoreception, Flyway,
+> Partial migration, Bird navigation, Zugunruhe, Ruby-throated hummingbird,
+> and Bird ringing. Should I create it?
+>
+> **You:** Yes, go ahead.
+>
+> **Claude:** *(calls `list_reading_lists` to check the name is free, then
+> `create_reading_lists`, then `create_list_entries` with the new list's id)*
+> Done. "Bird Migration" is on your account with all ten articles, ready in
+> the Wikipedia app.
 
 Each tool's docstring is written as documentation for the model: what the tool
 does, when to use it, and what the result means. That's how Claude decides
@@ -82,7 +100,9 @@ considered, and the tradeoffs.
 
 Some things learned along the way are recorded in the ADRs too. Bearer-token
 writes need no CSRF token. Calling setup twice is harmless. Creating a list
-with an existing name updates that list instead of failing. Wikimedia's error
+with an existing name updates that list instead of failing. Adding articles
+in a batch isn't all-or-nothing: if one fails, the ones before it are kept.
+Wikimedia's error
 responses come in several shapes (JSON, plain text, and HTML from the CDN), so
 the error parser decides the format from the body's fields rather than from
 `Content-Type`.
@@ -213,9 +233,8 @@ CLAUDE.md          # project context for Claude Code sessions
   registered, works only on English Wikipedia. Using it for other people means
   each person registering their own token, or the full OAuth flow listed under
   the roadmap.
-- **Lists can be created, but not yet filled.** You can't yet add or remove
-  articles. Adding them is next, through the REST API's entries `/batch`
-  endpoint.
+- **Nothing can be removed yet.** The server can create lists and add
+  articles, but can't delete either, or change a list's description.
 - **No automated tests yet.** Error handling has been checked by hand through
   the Inspector, against a live account. A test suite with mocked Wikimedia
   responses is planned ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)).
@@ -229,7 +248,9 @@ Current status, next steps, and a dated log of what was built and learned are
 in [`docs/ROADMAP.md`](docs/ROADMAP.md). Work items are tracked as
 [GitHub issues](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues).
 
-Next up: a tool to add articles to a list, then the test suite. Further out, a hosted version with a full OAuth flow would
+Next up: deciding how the model should choose the size of a new list
+([#6](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/6)),
+then the test suite. Further out, a hosted version with a full OAuth flow would
 let anyone connect their own account without creating a token by hand.
 
 ## How this was built
