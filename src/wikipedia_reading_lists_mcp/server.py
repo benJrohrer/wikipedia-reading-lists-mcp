@@ -14,7 +14,10 @@ from mcp.types import ToolAnnotations
 # Absolute import: MCP clients may run this file as a script, where relative
 # imports fail.
 from wikipedia_reading_lists_mcp.wikimedia import (
+    CreateListsResult,
+    ListSpec,
     WikimediaAPIError,
+    create_lists,
     fetch_entries,
     fetch_lists,
     make_client,
@@ -176,6 +179,45 @@ async def list_entries(ctx: Context, list_id: int) -> list[dict]:
     """
     app: AppContext = ctx.request_context.lifespan_context
     return await fetch_entries(app.client, list_id)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        read_only_hint=False,
+        open_world_hint=False,
+        idempotent_hint=True,
+        destructive_hint=False,
+    )
+)
+@handle_wikimedia_errors
+async def create_reading_lists(
+    ctx: Context, lists: list[ListSpec]
+) -> CreateListsResult:
+    """Create one or more Wikipedia reading lists with the given names and descriptions.
+
+    Only use this tool with the explicit permission of the user.
+    If the user has not given a specific name for the list,
+    come up with one that matches the content as closely as possible.
+    Before using this tool, use list_reading_lists to check if the given name conflicts.
+    This creates one or more reading lists on the user's account.
+    Including duplicate names in the input will only attempt to create the last copy.
+    The response will be a dictionary containing 3 lists:
+        created: a list of the reading lists created.
+        updated: a list of the reading lists whose descriptions were updated because of
+            a name conflict with an existing list, despite attempts to exclude such
+            lists beforehand. This only happens in a rare race case. Notify the user
+            that the description for all reading lists in this list was updated.
+        excluded: a list of the reading lists that were excluded from being created
+            because they were found to have conflicting names with already existing
+            reading lists. Notify the user that these lists were excluded. Ask the user
+            if they want to use the existing list (if you are in the process of using it
+            for something else), choose a different name and attempt creating it again,
+            or skip creating it.
+    Each item of all 3 lists includes the list id, which you can use for future list
+    operations, such as adding or updating entries.
+    """
+    app: AppContext = ctx.request_context.lifespan_context
+    return await create_lists(app.client, lists)
 
 
 def main() -> None:

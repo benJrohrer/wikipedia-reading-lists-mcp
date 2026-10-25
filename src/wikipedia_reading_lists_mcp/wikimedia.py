@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NotRequired, TypedDict
 
 import httpx2
 from dotenv import load_dotenv
@@ -18,6 +18,7 @@ type HttpMethod = Literal["GET", "POST"]
 API_BASE_URL = "https://en.wikipedia.org/"
 ACTION_API = "w/api.php"
 READING_LISTS_API = "api/rest_v1/data/lists/"
+CREATE_LIST_BATCH_API = READING_LISTS_API + "batch"
 # Wikimedia's User-Agent policy asks for a client name, version, and contact.
 USER_AGENT = (
     "wikipedia-reading-lists-mcp/0.1.0 "
@@ -46,6 +47,21 @@ class WikimediaAnonError(WikimediaAPIError):
         super().__init__(
             message="The Wikimedia API returned an anonymous user", code="anon"
         )
+
+
+class CreateListsResult(TypedDict):
+    """A dictionary with the lists of created, updated, and excluded reading lists."""
+
+    created: list[dict]
+    updated: list[dict]
+    excluded: list[dict]
+
+
+class ListSpec(TypedDict):
+    """A reading list to create."""
+
+    name: str
+    description: NotRequired[str]
 
 
 def get_access_token() -> str:
@@ -284,6 +300,64 @@ async def fetch_entries(client: httpx2.AsyncClient, list_id: int) -> list[dict]:
         query_params["next"] = data["next"]
 
     return entries
+
+
+async def create_lists(
+    client: httpx2.AsyncClient,
+    lists_to_create: list[ListSpec],
+) -> CreateListsResult:
+    """Create the lists defined by the list of ListSpecs.
+
+    Builds a batch dictionary from lists_to_create, excluding lists already existing and
+    known from calling fetch_lists. Returns a dictionary of 3 lists: the reading lists
+    created, the reading lists whose descriptions were updated (rare race condition),
+    and the reading lists that were excluded from being created because one with the
+    same name already existed.
+    """
+
+    existing_lists = await fetch_lists(client)
+    existing_by_name: dict[str, dict] = {
+        reading_list["name"]: reading_list for reading_list in existing_lists
+    }
+    create_by_name = {
+        list_to_create["name"]: list_to_create for list_to_create in lists_to_create
+    }
+    excluded_by_name = {
+        name: existing_list
+        for name, existing_list in existing_by_name.items()
+        if name in create_by_name
+    }
+    batch_list = [
+        list_spec
+        for name, list_spec in create_by_name.items()
+        if name not in excluded_by_name
+    ]
+
+    created = []
+    updated = []
+    excluded = list(excluded_by_name.values())
+
+    if batch_list:
+        batch = {"batch": batch_list}
+        response = await _post(client, CREATE_LIST_BATCH_API, json=batch)
+        data = response.json()
+        if "lists" not in data:
+            raise WikimediaAPIError(
+                "No lists returned after list creation.", "no-lists-created"
+            )
+
+        for list_response in data["lists"]:
+            if list_response.get("duplicate"):
+                updated.append(list_response)
+                logger.warning(
+                    "A reading list was unexpectedly updated during a call to "
+                    "create_lists.",
+                    extra={"updated list": list_response},
+                )
+            else:
+                created.append(list_response)
+
+    return {"created": created, "updated": updated, "excluded": excluded}
 
 
 async def _smoke_test() -> None:
