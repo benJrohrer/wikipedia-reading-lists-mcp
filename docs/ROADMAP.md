@@ -4,7 +4,7 @@ Status of the Wikipedia Reading Lists MCP server: what works, what's next, and
 how it got here. Design decisions are recorded as ADRs in
 [`docs/decisions/`](decisions/); individual work items are GitHub issues.
 
-_Last updated: 2026-10-24_
+_Last updated: 2026-10-25_
 
 ## Current status
 
@@ -29,6 +29,14 @@ _Last updated: 2026-10-24_
   lists, with their ids), and `updated` (a backstop for the rare case where a
   list was still overwritten)
   ([ADR 0006](decisions/0006-filter-duplicate-names-when-creating-lists.md)).
+- **Articles can be added to a list.** `create_list_entries` takes a list id
+  and one or more entries (project and title) and posts them to
+  `/data/lists/{id}/entries/batch`. An article already on the list is left
+  unchanged and comes back with `"duplicate": true`, so no filtering is
+  needed. The batch isn't atomic: if one entry fails, the entries before it
+  are saved and the rest are not. The tool's docstring says so, and the hint
+  for an unknown project tells the model to fix the project and resend the
+  whole batch.
 - **The server shares one HTTP client.** The server's lifespan creates the
   client at startup and closes it on shutdown, and tools reach it through
   `AppContext`
@@ -51,14 +59,15 @@ _Last updated: 2026-10-24_
   In VS Code, ruff also formats on save, using the same pinned version.
 - **The README covers** what the server does, how it works, setup, and the
   design decisions.
-- **Not yet:** no tool to add articles to a list, and no automated tests.
+- **Not yet:** no way to remove articles or lists, and no automated tests.
 
 ## Next up
 
-1. **Add entries to a list**: a tool for `/data/lists/{id}/entries/batch`.
-   Following ADR 0006, likely one tool that takes one or more entries. Still to
-   find out by testing: what the API does with an article that is already on
-   the list, and whether that needs the same kind of filter.
+1. **Decide how to guide the size of new lists**
+   ([#6](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/6)).
+   In testing, a request for a list about animal taxonomy produced 70 entries.
+   The options are soft guidance, suggesting several themed lists, an env-var
+   setting, a hard cap, or an MCP prompt. The decision gets an ADR.
 2. **Open question:** the server instructions overlap with the not-set-up
    hint and may make the model ask about opting in more often than needed.
    Decide whether to keep them, and update ADR 0003 if so.
@@ -78,18 +87,48 @@ _Last updated: 2026-10-24_
 - **Maybe: delete tools** for whole lists (`DELETE /data/lists/{id}`) and
   single entries (`DELETE /data/lists/{id}/entries/{entry_id}`). Not decided
   yet. These are the first destructive tools, so they would need a decision
-  about confirmation, like the one in ADR 0003.
+  about confirmation, like the one in ADR 0003. They would also let the model
+  split an oversized list into smaller ones
+  ([#6](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/6)).
 - **Maybe: a tool to change a list's description**, if users want it. ADR 0006
   prefers a separate tool over an overwrite option on create.
 - **Maybe: elicitation** on a name conflict, on top of the filter, for clients
   that support it. Deferred in ADR 0006.
-- **A type checker** (pyright or mypy). `ListSpec` and `CreateListsResult` are
-  `TypedDict`s, which only a type checker checks inside our own code. A
-  tooling choice, so it would go in an issue.
+- **A type checker** (pyright or mypy). `ListSpec`, `EntrySpec`, and the
+  result types are `TypedDict`s, which only a type checker checks inside our
+  own code. A tooling choice, so it would go in an issue.
 
 ## Progress log
 
 Newest first.
+
+### 2026-10-25
+
+- Added `create_list_entries`, which adds one or more articles to a list:
+  - Tested in Claude Desktop: an article already on the list isn't changed
+    and comes back with `"duplicate": true`. Unlike list creation
+    ([ADR 0006](decisions/0006-filter-duplicate-names-when-creating-lists.md)),
+    nothing is overwritten, so the tool doesn't fetch existing entries first.
+    Titles with spaces and with underscores count as the same article.
+  - Every entry in the response has a `duplicate` field, so
+    `CreateEntryResult` declares it as required. The SDK builds the tool's
+    output schema from that type.
+  - An empty `entries` list returns `[]` without sending a request, like
+    `create_lists`.
+  - The docstring tells the model to use the decoded title, with no
+    `#fragment`, and where list ids come from.
+- Learned that the entries batch isn't atomic. An unknown project returns
+  `readinglists-db-error-no-such-project`, and the entries before the bad one
+  are saved while the bad one and the rest are not. Confirmed by testing
+  both halves.
+- Added a hint for that error. It tells the model to fix the project and
+  resend the whole batch, which is safe because repeating a create changes
+  nothing. On the retry, the model ignores `duplicate` only for the entries
+  before the bad one, because those were saved by the failed call.
+- Found the error's code by calling `create_entries` directly: the ToolError
+  message carries only the API's `detail` text, not its `errorKey`.
+- Opened [#6](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/6)
+  after a test request produced a 70-entry list.
 
 ### 2026-10-24
 
