@@ -42,17 +42,13 @@ Or, to turn a conversation into a new list:
 > **You:** That was a great overview of how bird migration works. Can you
 > save the articles you mentioned to a new reading list? Ten or so is plenty.
 >
-> **Claude:** Here's what I'd add to a new list called "Bird Migration":
-> Bird migration, Arctic tern, Bar-tailed godwit, Magnetoreception, Flyway,
-> Partial migration, Bird navigation, Zugunruhe, Ruby-throated hummingbird,
-> and Bird ringing. Should I create it?
->
-> **You:** Yes, go ahead.
->
 > **Claude:** *(calls `list_reading_lists` to check the name is free, then
 > `create_reading_lists`, then `create_list_entries` with the new list's id)*
 > Done. "Bird Migration" is on your account with all ten articles, ready in
-> the Wikipedia app.
+> the Wikipedia app. It contains Bird migration, Arctic tern, Bar-tailed godwit,
+> Magnetoreception, Flyway, Partial migration, Bird navigation, Zugunruhe,
+> Ruby-throated hummingbird, and Bird ringing.
+
 
 Each tool's docstring is written as documentation for the model: what the tool
 does, when to use it, and what the result means. That's how Claude decides
