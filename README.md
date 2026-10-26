@@ -9,6 +9,11 @@ Claude, and it can see what you've already saved and, as the project grows,
 build a reading list in your Wikipedia account for you to pick up later on your
 phone or in the browser.
 
+<p align="center">
+  <img src="docs/assets/demo-conversation.gif" alt="Claude creating an 'Octopus Intelligence' reading list with nine articles" width="600" align="middle">
+  <img src="docs/assets/demo-phone.gif" alt="The new list open in the Wikipedia iOS app" width="220" align="middle" hspace="16">
+</p>
+
 > **Status:** early and working. The server can read your lists and their
 > articles, create new lists, add articles to them, and turn on the Reading
 > Lists feature for your account. See the [roadmap](docs/ROADMAP.md) for
