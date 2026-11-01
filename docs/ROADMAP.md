@@ -61,6 +61,29 @@ _Last updated: 2026-10-25_
   design decisions.
 - **Not yet:** no way to remove articles or lists, and no automated tests.
 
+## API coverage
+
+The server uses Wikimedia's Reading Lists REST API
+([spec](https://www.mediawiki.org/w/index.php?api=wmf-rest%2Fv1&title=Special%3ARestSandbox#/Reading%20lists)). This table
+shows which endpoints are implemented, which are planned, and which are left
+out on purpose.
+
+| Endpoint | Status | Tool | Issue | Notes |
+|---|---|---|---|---|
+| `POST /data/lists/setup` | ✅ Implemented | `setup_reading_lists` | — | Opts the user in to Reading Lists. Called only with the user's consent ([ADR 0003](decisions/0003-reading-list-setup-as-confirmed-mcp-tool.md)) |
+| `GET /data/lists/` | ✅ Implemented | `list_reading_lists` | — | Returns every list, following pagination |
+| `POST /data/lists/batch` | ✅ Implemented | `create_reading_lists` | — | Creates one or more lists. Existing names are skipped so they aren't overwritten ([ADR 0006](decisions/0006-filter-duplicate-names-when-creating-lists.md)) |
+| `GET /data/lists/{id}/entries/` | ✅ Implemented | `list_entries` | — | Returns every article on a list, following pagination |
+| `POST /data/lists/{id}/entries/batch` | ✅ Implemented | `create_list_entries` | — | Adds one or more articles to a list. Articles already on it are marked as duplicates |
+| `DELETE /data/lists/{id}/entries/{entry_id}` | 🔜 Planned (medium) | — | [#7](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/7) | Removes one article from a list. The natural complement to adding entries |
+| `DELETE /data/lists/{id}` | 🔜 Planned (medium) | — | [#8](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/8) | Deletes a list and every article on it. Safeguards: a destructive annotation, a docstring telling the model to confirm with the user, and a required list name that must match the id |
+| `PUT /data/lists/{id}` | 🔜 Planned (low) | — | [#9](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/9) | Renames a list or updates its description, for example after its scope changes |
+| `GET /data/lists/pages/{project}/{title}` | 🔜 Planned (low) | — | [#10](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/10) | Finds which lists contain an article in one call, which helps avoid saving an article the user already has |
+| `POST /data/lists` | ⏭️ Not used | — | — | Deprecated in favor of `POST /data/lists/batch` |
+| `POST /data/lists/{id}/entries/` | ⏭️ Not used | — | — | Deprecated in favor of the entries batch endpoint |
+| `POST /data/lists/teardown` | 🚫 Not planned | — | — | Deletes all of the user's lists and entries. Too destructive, with no use case here |
+| `GET /data/lists/changes/since/{date}` | 🚫 Not planned | — | — | Meant for syncing offline copies in the apps. Tool responses and errors already report what changed |
+
 ## Next up
 
 1. **Decide how to guide the size of new lists**
@@ -81,17 +104,16 @@ _Last updated: 2026-10-25_
 
 ## Later
 
-- **Find which lists contain an article**: a tool for
-  `GET /data/lists/pages/{project}/{title}`, which returns the user's lists
-  that include that article.
-- **Maybe: delete tools** for whole lists (`DELETE /data/lists/{id}`) and
-  single entries (`DELETE /data/lists/{id}/entries/{entry_id}`). Not decided
-  yet. These are the first destructive tools, so they would need a decision
-  about confirmation, like the one in ADR 0003. They would also let the model
-  split an oversized list into smaller ones
-  ([#6](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/6)).
-- **Maybe: a tool to change a list's description**, if users want it. ADR 0006
-  prefers a separate tool over an overwrite option on create.
+- **Planned endpoints** (see [API coverage](#api-coverage)):
+  - Delete tools for single entries
+    ([#7](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/7))
+    and whole lists
+    ([#8](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/8)).
+    They share one decision about confirmation, which gets an ADR.
+  - Rename a list or change its description
+    ([#9](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/9)).
+  - Find which lists contain an article
+    ([#10](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/10)).
 - **Maybe: elicitation** on a name conflict, on top of the filter, for clients
   that support it. Deferred in ADR 0006.
 - **A type checker** (pyright or mypy). `ListSpec`, `EntrySpec`, and the
