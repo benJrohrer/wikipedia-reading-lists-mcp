@@ -15,8 +15,8 @@ phone or in the browser.
 </p>
 
 > **Status:** early and working. The server can read your lists and their
-> articles, create new lists, add articles to them or remove them, and turn on
-> the Reading Lists feature for your account. See the
+> articles, create new lists, add articles to them or remove them, delete
+> lists, and turn on the Reading Lists feature for your account. See the
 > [roadmap](docs/ROADMAP.md) for details.
 
 ## What it can do
@@ -29,6 +29,7 @@ phone or in the browser.
 | `create_reading_lists` | Creates one or more empty lists, each with a name and an optional description. Names that already exist are left out and returned, so an existing list is never overwritten | Yes, adds lists |
 | `create_list_entries` | Adds one or more articles to a list, by list id. Articles already on the list are left alone and marked as duplicates | Yes, adds articles |
 | `delete_list_entries` | Removes one or more articles from a list, by list id and entry id. Claude is told to ask you first. Ids that aren't on that list are left alone and returned | Yes, removes articles |
+| `delete_list` | Deletes a whole list and every article on it, by list id. Claude is told to ask you first. The same article on other lists isn't affected, and your default list can't be deleted | Yes, removes a list. This can't be undone |
 
 A session might go like this:
 
