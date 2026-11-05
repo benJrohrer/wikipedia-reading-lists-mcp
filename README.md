@@ -15,9 +15,9 @@ phone or in the browser.
 </p>
 
 > **Status:** early and working. The server can read your lists and their
-> articles, create new lists, add articles to them, and turn on the Reading
-> Lists feature for your account. See the [roadmap](docs/ROADMAP.md) for
-> details.
+> articles, create new lists, add articles to them or remove them, and turn on
+> the Reading Lists feature for your account. See the
+> [roadmap](docs/ROADMAP.md) for details.
 
 ## What it can do
 
@@ -28,6 +28,7 @@ phone or in the browser.
 | `setup_reading_lists` | Turns on Wikipedia's Reading Lists feature for your account. Claude only calls it after asking you | Yes, once |
 | `create_reading_lists` | Creates one or more empty lists, each with a name and an optional description. Names that already exist are left out and returned, so an existing list is never overwritten | Yes, adds lists |
 | `create_list_entries` | Adds one or more articles to a list, by list id. Articles already on the list are left alone and marked as duplicates | Yes, adds articles |
+| `delete_list_entries` | Removes one or more articles from a list, by list id and entry id. Claude is told to ask you first. Ids that aren't on that list are left alone and returned | Yes, removes articles |
 
 A session might go like this:
 
@@ -98,11 +99,13 @@ considered, and the tradeoffs.
 | [0004](docs/decisions/0004-share-one-http-client-through-server-lifespan.md) | Share one HTTP client through the server lifespan | Reuses connections across calls and closes the client reliably, using the mechanism the MCP SDK provides |
 | [0005](docs/decisions/0005-convert-wikimedia-errors-to-tool-errors.md) | Convert Wikimedia errors to tool errors with next-step hints | The MCP SDK forwards only `ToolError` messages to the client. A decorator keeps the SDK out of the HTTP layer, and catching only network errors and timeouts keeps real bugs visible as crashes |
 | [0006](docs/decisions/0006-filter-duplicate-names-when-creating-lists.md) | Leave out existing names when creating lists, and return them to the model | The API silently overwrites the description of a list with the same name. Filtering on the server protects the user's data without relying on the model, and keeps the tool's non-destructive annotation accurate |
+| [0007](docs/decisions/0007-delete-entries-from-one-list-with-a-pre-check.md) | Delete entries from one list per call, and check each id against that list first | The DELETE endpoint doesn't reliably check the list in its URL, so the server does. One list per call means one lookup, and stopping at the first failure keeps the record of what was already deleted |
 
 Some things learned along the way are recorded in the ADRs too. Bearer-token
 writes need no CSRF token. Calling setup twice is harmless. Creating a list
 with an existing name updates that list instead of failing. Adding articles
 in a batch isn't all-or-nothing: if one fails, the ones before it are kept.
+Deleting an entry succeeded even with the wrong list id in the URL.
 Wikimedia's error
 responses come in several shapes (JSON, plain text, and HTML from the CDN), so
 the error parser decides the format from the body's fields rather than from
@@ -234,8 +237,8 @@ CLAUDE.md          # project context for Claude Code sessions
   registered, works only on English Wikipedia. Using it for other people means
   each person registering their own token, or the full OAuth flow listed under
   the roadmap.
-- **Nothing can be removed yet.** The server can create lists and add
-  articles, but can't delete either, or change a list's description.
+- **Lists can't be deleted yet.** The server can create lists and add or
+  remove articles, but can't delete a list or change its description.
 - **No automated tests yet.** Error handling has been checked by hand through
   the Inspector, against a live account. A test suite with mocked Wikimedia
   responses is planned ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)).
