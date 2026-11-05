@@ -32,3 +32,7 @@ line-length = 88
 [tool.ruff.lint]
 # extend-select: keep ruff's default rules as they evolve; upgrades may add findings.
 extend-select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+# keeps aliased imports in the main block, so delete_list can be aliased in server.py
+combine-as-imports = true
