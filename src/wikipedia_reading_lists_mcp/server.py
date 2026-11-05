@@ -16,12 +16,14 @@ from mcp.types import ToolAnnotations
 from wikipedia_reading_lists_mcp.wikimedia import (
     CreateEntryResult,
     CreateListsResult,
+    DeleteEntriesResult,
     EntrySpec,
     FetchedEntryResult,
     ListSpec,
     WikimediaAPIError,
     create_entries,
     create_lists,
+    delete_entries,
     fetch_entries,
     fetch_lists,
     make_client,
@@ -65,6 +67,17 @@ ERROR_HINTS: dict[str, str] = {
         "No list exists with the given id. Call "
         "list_reading_lists to get all lists with their ids. Then you can use an id "
         "from that list to reference it where a list id is required."
+    ),
+    "readinglists-db-error-no-such-list-entry": (
+        "No list entry exists with the given id. Call list_entries with the given "
+        "list_id. Then you can use an id from that list to reference it where an entry "
+        "id is required. Call list_reading_lists to get all lists, if you need a "
+        "list_id as well."
+    ),
+    "readinglists-db-error-not-own-list-entry": (
+        "The user does not own the list entry. Call list_reading_lists to get the "
+        "lists which belong to the user, then list_entries with one of those list ids "
+        "to get the entries on that list."
     ),
     "readinglists-db-error-no-such-project": (
         "The given project name is not a recognized Wikimedia project. A project name "
@@ -270,6 +283,52 @@ async def create_list_entries(
     """
     app: AppContext = ctx.request_context.lifespan_context
     return await create_entries(app.client, list_id, entries)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        read_only_hint=False,
+        open_world_hint=False,
+        idempotent_hint=True,
+        destructive_hint=True,
+    )
+)
+@handle_wikimedia_errors
+async def delete_list_entries(
+    ctx: Context, list_id: int, entry_ids: list[int]
+) -> DeleteEntriesResult:
+    """Delete one or more entries from the reading list defined by list_id.
+
+    Only use this tool with the explicit permission of the user. This deletes the
+    entries with the given entry_ids from the reading list defined by list_id. list_id
+    comes from other tools such as list_reading_lists or create_reading_lists, and
+    entry_ids come from list_entries or create_list_entries. To delete entries from
+    several lists, call this tool once per list. If the list can't be read, this tool
+    raises an error and nothing is deleted. Otherwise the return value is a dictionary
+    with these keys:
+    - deleted: ids of entries successfully deleted
+    - failed: null, or the entry whose deletion hit an unexpected error, with its
+      entry_id, code, message, and sometimes a hint on how to proceed. The tool stops
+      at this error. The entry may or may not have been deleted, so do not tell the
+      user it is still on the list.
+    - excluded: ids of entries not deleted because they are not on the given list. The
+      tool can't tell why: an entry may be on another list or may already be deleted.
+    - not_attempted: ids of entries skipped because the tool stopped at failed
+    Notify the user of the entries that were deleted, and of any that were not and why.
+    Do not retry excluded entries on the same list. If you expected one to be on this
+    list, check that list_id is correct. To finish after a failure, follow the hint if
+    there is one, then call this tool again with the failed entry's id and the
+    not_attempted ids. It is safe to retry the failed entry: if it was deleted, it will
+    be reported as excluded.
+    """
+    app: AppContext = ctx.request_context.lifespan_context
+    result = await delete_entries(app.client, list_id, entry_ids)
+    # ToolError would hide the entries already deleted, so the hint goes in the result
+    if result["failed"]:
+        hint = _error_hint(result["failed"]["code"])
+        if hint:
+            result["failed"]["hint"] = hint
+    return result
 
 
 def main() -> None:

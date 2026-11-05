@@ -10,7 +10,7 @@ from typing import Literal, NotRequired, TypedDict
 import httpx2
 from dotenv import load_dotenv
 
-type HttpMethod = Literal["GET", "POST"]
+type HttpMethod = Literal["GET", "POST", "DELETE"]
 
 # httpx2 always appends "/" to base_url, so the base is the domain root and
 # each request names its full path. The Action API is a single endpoint; the
@@ -77,6 +77,24 @@ class FetchedEntryResult(TypedDict):
     title: str
     created: str
     updated: str
+
+
+class FailedDelete(TypedDict):
+    """The entry whose deletion failed, with the error that stopped the batch."""
+
+    entry_id: int
+    code: str | None
+    message: str
+    hint: NotRequired[str]
+
+
+class DeleteEntriesResult(TypedDict):
+    """A dictionary with the outcome of each entry in a delete attempt."""
+
+    deleted: list[int]
+    failed: FailedDelete | None
+    excluded: list[int]
+    not_attempted: list[int]
 
 
 class EntrySpec(TypedDict):
@@ -181,6 +199,15 @@ async def _request(
 
         raise WikimediaAPIError(message, code) from e
     return response
+
+
+async def _delete(
+    client: httpx2.AsyncClient,
+    url: str,
+    params: dict | None = None,
+) -> httpx2.Response:
+    """Send a DELETE request and return the response"""
+    return await _request(client=client, method="DELETE", url=url, params=params)
 
 
 async def _get(
@@ -414,6 +441,61 @@ async def create_entries(
             "No entries returned after entry creation.", "no-entries-created"
         )
     return data["entries"]
+
+
+async def delete_entries(
+    client: httpx2.AsyncClient, list_id: int, entry_ids: list[int]
+) -> DeleteEntriesResult:
+    """Delete the entries with the given entry_ids from the list with the given list_id.
+
+    Repeated ids are only processed once. Stops at the first error other than the entry
+    already being deleted, so entries deleted before it are still reported. Returns a
+    dictionary with lists of the ids successfully deleted, excluded because they are
+    not on the list (on another list or already deleted), and not attempted because of
+    an earlier error, along with the failed entry, if any. Raises WikimediaAPIError,
+    with nothing deleted, if the list's entries can't be fetched.
+    """
+
+    # The DELETE endpoint accepts an entry id under a list it doesn't belong to, so
+    # this check is the only thing ensuring entries are deleted from the given list.
+    fetched_entries = await fetch_entries(client, list_id)
+    valid_entry_ids = {fetched_entry["id"] for fetched_entry in fetched_entries}
+
+    already_deleted_error = "readinglists-db-error-list-entry-deleted"
+    unique_entry_ids = list(dict.fromkeys(entry_ids))
+    successfully_deleted = []
+    failed: FailedDelete | None = None
+    excluded = []
+    not_attempted = []
+
+    for index, entry_id in enumerate(unique_entry_ids):
+        if entry_id not in valid_entry_ids:
+            # do not attempt to delete entry because it is not actually on the list
+            excluded.append(entry_id)
+            continue
+
+        url = READING_LISTS_API + f"{list_id}/entries/{entry_id}"
+        try:
+            await _delete(client, url)
+            successfully_deleted.append(entry_id)
+        except WikimediaAPIError as e:
+            if e.code == already_deleted_error:
+                # the entry left the list after the check, so treat it the same as
+                # any other entry that isn't on the list
+                excluded.append(entry_id)
+            else:
+                # the pre-check rules out per-entry errors, so assume the remaining
+                # requests would fail too (e.g. bad token, rate limit, network)
+                failed = {"entry_id": entry_id, "code": e.code, "message": str(e)}
+                not_attempted = unique_entry_ids[index + 1 :]
+                break
+
+    return {
+        "deleted": successfully_deleted,
+        "failed": failed,
+        "excluded": excluded,
+        "not_attempted": not_attempted,
+    }
 
 
 async def _smoke_test() -> None:
