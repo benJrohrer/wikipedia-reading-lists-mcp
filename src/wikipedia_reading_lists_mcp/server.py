@@ -17,6 +17,7 @@ from wikipedia_reading_lists_mcp.wikimedia import (
     CreateEntryResult,
     CreateListsResult,
     EntrySpec,
+    FetchedEntryResult,
     ListSpec,
     WikimediaAPIError,
     create_entries,
@@ -186,7 +187,7 @@ async def list_reading_lists(ctx: Context) -> list[dict]:
     )
 )
 @handle_wikimedia_errors
-async def list_entries(ctx: Context, list_id: int) -> list[dict]:
+async def list_entries(ctx: Context, list_id: int) -> list[FetchedEntryResult]:
     """List all entries for the user's Wikipedia reading list with the given id.
 
     Get list_id from another tool such as list_reading_lists.

@@ -69,6 +69,16 @@ class CreateListsResult(TypedDict):
     excluded: list[dict]
 
 
+class FetchedEntryResult(TypedDict):
+    """A dictionary with id, project, title, created, and updated fields for entry."""
+
+    id: int
+    project: str
+    title: str
+    created: str
+    updated: str
+
+
 class EntrySpec(TypedDict):
     """An entry to create on a reading list."""
 
@@ -284,7 +294,9 @@ async def fetch_lists(client: httpx2.AsyncClient) -> list[dict]:
     return lists
 
 
-async def fetch_entries(client: httpx2.AsyncClient, list_id: int) -> list[dict]:
+async def fetch_entries(
+    client: httpx2.AsyncClient, list_id: int
+) -> list[FetchedEntryResult]:
     """Return the entries on the user's reading list with the given list_id.
 
     Returns every entry (all pages are fetched), each with
