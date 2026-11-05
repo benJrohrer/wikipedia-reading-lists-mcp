@@ -24,6 +24,7 @@ from wikipedia_reading_lists_mcp.wikimedia import (
     create_entries,
     create_lists,
     delete_entries,
+    delete_list as delete_list_wiki,
     fetch_entries,
     fetch_lists,
     make_client,
@@ -57,6 +58,11 @@ mcp = MCPServer(
 )
 
 ERROR_HINTS: dict[str, str] = {
+    "readinglists-db-error-cannot-delete-default-list": (
+        "The default list cannot be deleted. Do not retry this call and let the user "
+        "know about this limitation. If that list was passed by mistake, use "
+        "list_reading_lists to get all of the user's lists with their ids."
+    ),
     "readinglists-db-error-not-set-up": (
         "The user has not opted in to the Reading List feature. "
         "To enable the feature, ask the user if you can opt in to this feature on "
@@ -73,6 +79,11 @@ ERROR_HINTS: dict[str, str] = {
         "list_id. Then you can use an id from that list to reference it where an entry "
         "id is required. Call list_reading_lists to get all lists, if you need a "
         "list_id as well."
+    ),
+    "readinglists-db-error-not-own-list": (
+        "The user does not own the list. Call list_reading_lists to get the "
+        "lists which belong to the user, and use those list ids to perform other "
+        "operations which require a list_id."
     ),
     "readinglists-db-error-not-own-list-entry": (
         "The user does not own the list entry. Call list_reading_lists to get the "
@@ -329,6 +340,34 @@ async def delete_list_entries(
         if hint:
             result["failed"]["hint"] = hint
     return result
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        read_only_hint=False,
+        open_world_hint=False,
+        idempotent_hint=True,
+        destructive_hint=True,
+    )
+)
+@handle_wikimedia_errors
+async def delete_list(ctx: Context, list_id: int) -> bool:
+    """Delete an entire list with the given list_id from the user's account.
+
+    Only use this tool with the explicit permission of the user. This deletes the
+    list defined by list_id. list_id comes from other tools such as list_reading_lists
+    or create_reading_lists. When a list is deleted, all of the entries on that list
+    are deleted too; the same article on other lists is not affected. Deleting a list
+    cannot be undone. The default list cannot be deleted. List responses (like from
+    calling list_reading_lists) will include a default field, and you should check this
+    and avoid calling this tool on the default list.
+    Returns true if the delete was successful, or false if it had already been deleted.
+    Otherwise, raises a ToolError.
+    Do not treat a false return as meaning the list was not deleted. It just means that
+    the list was already deleted.
+    """
+    app: AppContext = ctx.request_context.lifespan_context
+    return await delete_list_wiki(app.client, list_id)
 
 
 def main() -> None:

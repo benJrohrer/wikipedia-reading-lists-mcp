@@ -498,6 +498,30 @@ async def delete_entries(
     }
 
 
+async def delete_list(
+    client: httpx2.AsyncClient,
+    list_id: int,
+) -> bool:
+    """Delete the list given by list_id.
+
+    Returns true if the list was deleted by this call.
+    Return false if the list had already been deleted.
+    Otherwise, raises a WikimediaAPIError.
+    """
+
+    url = READING_LISTS_API + f"{list_id}"
+    already_deleted_error = "readinglists-db-error-list-deleted"
+    try:
+        await _delete(client, url)
+    except WikimediaAPIError as e:
+        if e.code == already_deleted_error:
+            return False
+        else:
+            raise
+
+    return True
+
+
 async def _smoke_test() -> None:
     async with make_client() as client:
         username = await fetch_username(client)
