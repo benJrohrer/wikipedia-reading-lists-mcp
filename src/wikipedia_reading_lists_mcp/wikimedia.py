@@ -116,11 +116,10 @@ class ListResult(TypedDict):
 
     id: int
     name: str
-    default: bool
-    description: str
+    default: NotRequired[bool]
+    description: NotRequired[str]
     created: str
     updated: str
-    duplicate: NotRequired[bool]
 
 
 def get_access_token() -> str:
