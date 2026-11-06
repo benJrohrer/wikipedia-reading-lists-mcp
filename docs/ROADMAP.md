@@ -4,7 +4,7 @@ Status of the Wikipedia Reading Lists MCP server: what works, what's next, and
 how it got here. Design decisions are recorded as ADRs in
 [`docs/decisions/`](decisions/); individual work items are GitHub issues.
 
-_Last updated: 2026-10-25_
+_Last updated: 2026-11-05_
 
 ## Current status
 
@@ -37,6 +37,22 @@ _Last updated: 2026-10-25_
   are saved and the rest are not. The tool's docstring says so, and the hint
   for an unknown project tells the model to fix the project and resend the
   whole batch.
+- **Articles can be removed from a list.** `delete_list_entries` takes one list
+  id and one or more entry ids. The DELETE endpoint doesn't reliably check the
+  list in its URL, so the tool fetches the list first and only deletes ids it
+  finds there. It stops at the first unexpected error and returns `deleted`,
+  `failed`, `excluded`, and `not_attempted`
+  ([ADR 0007](decisions/0007-delete-entries-from-one-list-with-a-pre-check.md)).
+- **Lists can be deleted.** `delete_list` deletes a list and every article on
+  it. The endpoint validates the list itself, so there is no pre-check. A list
+  that was already deleted returns `False` rather than an error
+  ([#8](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/8)).
+- **Lists can be updated.** `update_list` renames a list, changes or clears its
+  description, or both, through `PUT /data/lists/{id}`. A field left out keeps
+  its value. The API rejects an empty description unless a name comes with it,
+  so the tool looks up the current name only when clearing a description. The
+  API rejects duplicate names itself, so there is no pre-check
+  ([ADR 0008](decisions/0008-update-lists-with-optional-fields.md)).
 - **The server shares one HTTP client.** The server's lifespan creates the
   client at startup and closes it on shutdown, and tools reach it through
   `AppContext`
@@ -48,8 +64,9 @@ _Last updated: 2026-10-25_
   Checked through the Inspector with a bad token and with an account that
   hasn't set up reading lists.
 - **All requests go through one function.** `_request()` sends any HTTP method
-  and handles errors in one place; `_get()` and `_post()` set the method, and a
-  `Literal` type limits which methods can be passed
+  and handles errors in one place; `_get()`, `_post()`, `_put()`, and
+  `_delete()` set the method, and a `Literal` type limits which methods can be
+  passed
   ([#5](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/5)).
   Request bodies are sent as JSON.
 - **Linting and formatting are automatic.** Ruff checks and formats the code
@@ -59,7 +76,8 @@ _Last updated: 2026-10-25_
   In VS Code, ruff also formats on save, using the same pinned version.
 - **The README covers** what the server does, how it works, setup, and the
   design decisions.
-- **Not yet:** no way to remove articles or lists, and no automated tests.
+- **Not yet:** no way to find which lists contain an article, and no automated
+  tests.
 
 ## API coverage
 
@@ -75,9 +93,9 @@ out on purpose.
 | `POST /data/lists/batch` | ✅ Implemented | `create_reading_lists` | — | Creates one or more lists. Existing names are skipped so they aren't overwritten ([ADR 0006](decisions/0006-filter-duplicate-names-when-creating-lists.md)) |
 | `GET /data/lists/{id}/entries/` | ✅ Implemented | `list_entries` | — | Returns every article on a list, following pagination |
 | `POST /data/lists/{id}/entries/batch` | ✅ Implemented | `create_list_entries` | — | Adds one or more articles to a list. Articles already on it are marked as duplicates |
-| `DELETE /data/lists/{id}/entries/{entry_id}` | 🔜 Planned (medium) | — | [#7](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/7) | Removes one article from a list. The natural complement to adding entries |
-| `DELETE /data/lists/{id}` | 🔜 Planned (medium) | — | [#8](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/8) | Deletes a list and every article on it. Safeguards: a destructive annotation, a docstring telling the model to confirm with the user, and a required list name that must match the id |
-| `PUT /data/lists/{id}` | 🔜 Planned (low) | — | [#9](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/9) | Renames a list or updates its description, for example after its scope changes |
+| `DELETE /data/lists/{id}/entries/{entry_id}` | ✅ Implemented | `delete_list_entries` | [#7](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/7) | Removes one or more articles from one list. Each id is checked against that list first ([ADR 0007](decisions/0007-delete-entries-from-one-list-with-a-pre-check.md)) |
+| `DELETE /data/lists/{id}` | ✅ Implemented | `delete_list` | [#8](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/8) | Deletes a list and every article on it. Uses a destructive annotation and a docstring telling the model to confirm with the user |
+| `PUT /data/lists/{id}` | ✅ Implemented | `update_list` | [#9](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/9) | Renames a list or changes or clears its description ([ADR 0008](decisions/0008-update-lists-with-optional-fields.md)) |
 | `GET /data/lists/pages/{project}/{title}` | 🔜 Planned (low) | — | [#10](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/10) | Finds which lists contain an article in one call, which helps avoid saving an article the user already has |
 | `POST /data/lists` | ⏭️ Not used | — | — | Deprecated in favor of `POST /data/lists/batch` |
 | `POST /data/lists/{id}/entries/` | ⏭️ Not used | — | — | Deprecated in favor of the entries batch endpoint |
@@ -94,7 +112,9 @@ out on purpose.
 2. **Open question:** the server instructions overlap with the not-set-up
    hint and may make the model ask about opting in more often than needed.
    Decide whether to keep them, and update ADR 0003 if so.
-3. **Open issues:**
+3. **Open question:** Claude drafted ADR 0008, asking wherever the reasoning
+   wasn't known, as a trial. Decide whether to keep working this way.
+4. **Open issues:**
    - Automated tests with mocked Wikimedia responses
      ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)).
      Start with the error cases (mocked HTTP error bodies, transport errors,
@@ -104,16 +124,9 @@ out on purpose.
 
 ## Later
 
-- **Planned endpoints** (see [API coverage](#api-coverage)):
-  - Delete tools for single entries
-    ([#7](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/7))
-    and whole lists
-    ([#8](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/8)).
-    They share one decision about confirmation, which gets an ADR.
-  - Rename a list or change its description
-    ([#9](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/9)).
-  - Find which lists contain an article
-    ([#10](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/10)).
+- **Planned endpoint** (see [API coverage](#api-coverage)): find which lists
+  contain an article
+  ([#10](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/10)).
 - **Maybe: elicitation** on a name conflict, on top of the filter, for clients
   that support it. Deferred in ADR 0006.
 - **A type checker** (pyright or mypy). `ListSpec`, `EntrySpec`, and the
@@ -123,6 +136,51 @@ out on purpose.
 ## Progress log
 
 Newest first.
+
+### 2026-11-05
+
+- Added `update_list` and accepted
+  [ADR 0008](decisions/0008-update-lists-with-optional-fields.md):
+  - A field left out of the PUT is kept, even though the spec's schema requires
+    `name`. An empty description is treated as missing unless a name comes with
+    it, so the tool looks up the current name only when clearing a description.
+    Sending a list's current name succeeds.
+  - Chose not to pre-check names, unlike
+    [ADR 0006](decisions/0006-filter-duplicate-names-when-creating-lists.md).
+    The API rejects a duplicate name and changes nothing, while batch create
+    overwrites silently.
+  - Rejected telling the model to send the name when it already knows it. That
+    would save one GET, but a stale name would silently rename the list.
+  - An update to a deleted list returns `list-deleted`, while clearing the
+    description on one returns `no-such-list`, because the lookup doesn't find
+    it. Both have hints.
+  - Added `_put()` and hints for the new error codes.
+- Added `ListResult` for `list_reading_lists` and `update_list`. The SDK
+  validates tool output against the return type, so one list missing a required
+  field would fail the whole call. The fields the spec doesn't require are
+  `NotRequired`.
+- Added `delete_list`
+  ([#8](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/8)).
+  It follows the `opt_in` pattern, so an already deleted list returns `False`.
+  It has no pre-check, because this endpoint validates the list itself.
+- Added `delete_list_entries` and accepted
+  [ADR 0007](decisions/0007-delete-entries-from-one-list-with-a-pre-check.md).
+  The tool checks each id against the list because the DELETE endpoint doesn't
+  reliably check the list in its URL. Also added `FetchedEntryResult`.
+- Enabled ruff's `combine-as-imports`.
+- Learned that the API sandbox can't send a PUT, for the same reason as the
+  batch POST, so PUT tests used `curl`. The Inspector's form can't send an empty
+  string, but its CLI mode can; noted in `CLAUDE.md`.
+- Started a trial of Claude drafting ADRs, asking wherever the reasoning isn't
+  known. ADR 0008 is the first; the README notes the change.
+
+### 2026-11-01
+
+- Added the API coverage table to this roadmap.
+
+### 2026-10-26
+
+- Added demo GIFs to the README and updated its example.
 
 ### 2026-10-25
 
