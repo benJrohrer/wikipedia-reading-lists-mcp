@@ -10,7 +10,7 @@ from typing import Literal, NotRequired, TypedDict
 import httpx2
 from dotenv import load_dotenv
 
-type HttpMethod = Literal["GET", "POST", "DELETE"]
+type HttpMethod = Literal["GET", "POST", "DELETE", "PUT"]
 
 # httpx2 always appends "/" to base_url, so the base is the domain root and
 # each request names its full path. The Action API is a single endpoint; the
@@ -243,6 +243,21 @@ async def _post(
     """
     return await _request(
         client=client, method="POST", url=url, params=params, json=json
+    )
+
+
+async def _put(
+    client: httpx2.AsyncClient,
+    url: str,
+    params: dict | None = None,
+    json: dict | None = None,
+) -> httpx2.Response:
+    """Send a PUT request and return the successful response.
+
+    Wraps _request with method='PUT'. Raises WikimediaAPIError as _request does.
+    """
+    return await _request(
+        client=client, method="PUT", url=url, params=params, json=json
     )
 
 
@@ -531,6 +546,66 @@ async def delete_list(
             raise
 
     return True
+
+
+async def _fetch_list_name(
+    client: httpx2.AsyncClient,
+    list_id: int,
+) -> str:
+    """Return the name of the list with the given list_id.
+
+    Utility function which calls fetch_lists and returns the name of the list with the
+    matching list_id. If no such list is found, raises a WikimediaAPIError.
+    """
+    lists = await fetch_lists(client)
+    for reading_list in lists:
+        if reading_list["id"] == list_id:
+            return reading_list["name"]
+
+    raise WikimediaAPIError(
+        f"No list exists with ID: {list_id}.",
+        "readinglists-db-error-no-such-list",
+    )
+
+
+async def update_list(
+    client: httpx2.AsyncClient,
+    list_id: int,
+    name: str | None = None,
+    description: str | None = None,
+) -> ListResult:
+    """Update the list with the given list_id to have the given name and description.
+
+    One of either name or description is required. When name is included, it must be
+    non-empty. An empty description clears the list's description. Clearing the
+    description (by passing description=""), without including name, will force a call
+    to _fetch_list_name and fetch_lists.
+    """
+
+    if name is None and description is None:
+        raise WikimediaAPIError(
+            "One of name or description is required.", "name-or-description-required"
+        )
+    if name == "":
+        raise WikimediaAPIError(
+            "Name must not be empty string for update.", "non-empty-name-required"
+        )
+
+    url = READING_LISTS_API + f"{list_id}"
+    json = {}
+    if name is not None:
+        json["name"] = name
+    elif description == "":
+        # The API treats an empty description as missing unless a name is sent with it.
+        # When name is None and description is "", we can lookup the name of list_id to
+        # clear the description. This is a quirk of the API discussed in (#9)
+        json["name"] = await _fetch_list_name(client, list_id)
+
+    if description is not None:
+        json["description"] = description
+
+    response = await _put(client, url, json=json)
+    return response.json()["list"]
 
 
 async def _smoke_test() -> None:

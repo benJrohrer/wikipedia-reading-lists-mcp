@@ -30,6 +30,7 @@ from wikipedia_reading_lists_mcp.wikimedia import (
     fetch_lists,
     make_client,
     opt_in,
+    update_list as update_list_wiki,
 )
 
 
@@ -63,6 +64,21 @@ ERROR_HINTS: dict[str, str] = {
         "The default list cannot be deleted. Do not retry this call and let the user "
         "know about this limitation. If that list was passed by mistake, use "
         "list_reading_lists to get all of the user's lists with their ids."
+    ),
+    "readinglists-db-error-cannot-update-default-list": (
+        "The default list cannot be updated. Do not retry this call and let the user "
+        "know about this limitation. If that list was passed by mistake, use "
+        "list_reading_lists to get all of the user's lists with their ids."
+    ),
+    "readinglists-db-error-duplicate-list": (
+        "The list that would be created or updated has the same name as an existing "
+        "list of this user, which the API forbids. Choose a different name and try "
+        "again. Use list_reading_lists first to ensure that the chosen name does not "
+        "conflict."
+    ),
+    "readinglists-db-error-list-deleted": (
+        "The given list has been deleted. Use list_reading_lists to get a list of the "
+        "user's current lists. Don't retry this call and notify the user."
     ),
     "readinglists-db-error-not-set-up": (
         "The user has not opted in to the Reading List feature. "
@@ -106,8 +122,17 @@ ERROR_HINTS: dict[str, str] = {
         "name. Notify the user of the updated project name and for which entries it "
         "was used for."
     ),
+    "name-or-description-required": (
+        "When updating a list, at least one of name or description is required. If you "
+        "are trying to update the name or description, include one or both of them as "
+        "arguments to this tool."
+    ),
     "network": (
         "A network error occurred. Tell the user to check the internet connection."
+    ),
+    "non-empty-name-required": (
+        "When updating a list, the name field, if included, must be non-empty. Omit "
+        "the name to keep the current name."
     ),
     "timeout": (
         "The connection timed out. Retry once; if it fails again, tell the user to "
@@ -199,7 +224,9 @@ async def list_reading_lists(ctx: Context) -> list[ListResult]:
     Use this to see which reading lists exist before reading or changing one.
     Returns every list (all pages are fetched), each with "id", "name",
     "created", and "updated", and sometimes "description". Use the "id" with
-    other reading-list tools.
+    other reading-list tools. The results will also indicate whether or not a list is
+    the default list. Pay attention to this, especially for making subsequent calls to
+    update_list and delete_list, which cannot be performed on the default list.
     """
     app: AppContext = ctx.request_context.lifespan_context
     return await fetch_lists(app.client)
@@ -369,6 +396,38 @@ async def delete_list(ctx: Context, list_id: int) -> bool:
     """
     app: AppContext = ctx.request_context.lifespan_context
     return await delete_list_wiki(app.client, list_id)
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        read_only_hint=False,
+        open_world_hint=False,
+        idempotent_hint=True,
+        destructive_hint=True,
+    )
+)
+@handle_wikimedia_errors
+async def update_list(
+    ctx: Context, list_id: int, name: str | None = None, description: str | None = None
+) -> ListResult:
+    """Update the list defined by list_id with the given name and/or description.
+
+    Only use this tool with the explicit permission of the user.
+    This updates the list with list_id to have the given name and/or description. One
+    of either name or description is required to use this tool. Not including one of
+    name or description is allowed, and the excluded argument will be ignored and not
+    updated. If name is included, it cannot be the empty string. When description is the
+    empty string, it clears the description of the list. The default list cannot be
+    updated. A list cannot be updated to have the same name as another list. List
+    responses (like from calling list_reading_lists) will include a id field (to use as
+    list_id), a default field, and the name of the list. You should check this and avoid
+    calling this tool on the default list or with an already existing list name.
+    Returns the updated list.
+    """
+    app: AppContext = ctx.request_context.lifespan_context
+    return await update_list_wiki(
+        app.client, list_id, name=name, description=description
+    )
 
 
 def main() -> None:
