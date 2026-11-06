@@ -19,6 +19,7 @@ from wikipedia_reading_lists_mcp.wikimedia import (
     DeleteEntriesResult,
     EntrySpec,
     FetchedEntryResult,
+    ListResult,
     ListSpec,
     WikimediaAPIError,
     create_entries,
@@ -192,7 +193,7 @@ async def setup_reading_lists(ctx: Context) -> bool:
     )
 )
 @handle_wikimedia_errors
-async def list_reading_lists(ctx: Context) -> list[dict]:
+async def list_reading_lists(ctx: Context) -> list[ListResult]:
     """List the user's Wikipedia reading lists.
 
     Use this to see which reading lists exist before reading or changing one.

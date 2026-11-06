@@ -111,6 +111,18 @@ class ListSpec(TypedDict):
     description: NotRequired[str]
 
 
+class ListResult(TypedDict):
+    """A typical reading list result from listing or updating a reading list."""
+
+    id: int
+    name: str
+    default: bool
+    description: str
+    created: str
+    updated: str
+    duplicate: NotRequired[bool]
+
+
 def get_access_token() -> str:
     """Return the owner-only OAuth 2.0 token, or raise if it is missing."""
     token = os.environ.get("WIKIMEDIA_ACCESS_TOKEN")
@@ -287,7 +299,7 @@ async def fetch_username(client: httpx2.AsyncClient) -> str:
     return userinfo["name"]
 
 
-async def fetch_lists(client: httpx2.AsyncClient) -> list[dict]:
+async def fetch_lists(client: httpx2.AsyncClient) -> list[ListResult]:
     """Return the current user's reading lists from GET /data/lists/.
 
     Each list is a dict with at least "id", "name", "created", and "updated"
