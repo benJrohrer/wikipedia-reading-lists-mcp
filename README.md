@@ -15,8 +15,8 @@ phone or in the browser.
 </p>
 
 > **Status:** early and working. The server can read your lists and their
-> articles, create new lists, add articles to them or remove them, delete
-> lists, and turn on the Reading Lists feature for your account. See the
+> articles, create new lists, add articles to them or remove them, update or
+> delete lists, and turn on the Reading Lists feature for your account. See the
 > [roadmap](docs/ROADMAP.md) for details.
 
 ## What it can do
@@ -30,6 +30,7 @@ phone or in the browser.
 | `create_list_entries` | Adds one or more articles to a list, by list id. Articles already on the list are left alone and marked as duplicates | Yes, adds articles |
 | `delete_list_entries` | Removes one or more articles from a list, by list id and entry id. Claude is told to ask you first. Ids that aren't on that list are left alone and returned | Yes, removes articles |
 | `delete_list` | Deletes a whole list and every article on it, by list id. Claude is told to ask you first. The same article on other lists isn't affected, and your default list can't be deleted | Yes, removes a list. This can't be undone |
+| `update_list` | Renames a list, changes or clears its description, or both, by list id. Claude is told to ask you first. A field you leave out keeps its value, a name already used by another list is rejected, and your default list can't be updated | Yes, replaces the old name or description |
 
 A session might go like this:
 
@@ -101,12 +102,14 @@ considered, and the tradeoffs.
 | [0005](docs/decisions/0005-convert-wikimedia-errors-to-tool-errors.md) | Convert Wikimedia errors to tool errors with next-step hints | The MCP SDK forwards only `ToolError` messages to the client. A decorator keeps the SDK out of the HTTP layer, and catching only network errors and timeouts keeps real bugs visible as crashes |
 | [0006](docs/decisions/0006-filter-duplicate-names-when-creating-lists.md) | Leave out existing names when creating lists, and return them to the model | The API silently overwrites the description of a list with the same name. Filtering on the server protects the user's data without relying on the model, and keeps the tool's non-destructive annotation accurate |
 | [0007](docs/decisions/0007-delete-entries-from-one-list-with-a-pre-check.md) | Delete entries from one list per call, and check each id against that list first | The DELETE endpoint doesn't reliably check the list in its URL, so the server does. One list per call means one lookup, and stopping at the first failure keeps the record of what was already deleted |
+| [0008](docs/decisions/0008-update-lists-with-optional-fields.md) | Make the name and description optional when updating a list, and look up the name only to clear a description | The API rejects an empty description unless a name comes with it. Looking up the name on the server keeps that quirk out of the tool, so clearing a description can't rename a list by mistake. Duplicate names are left to the API, which rejects them without changing anything |
 
 Some things learned along the way are recorded in the ADRs too. Bearer-token
 writes need no CSRF token. Calling setup twice is harmless. Creating a list
 with an existing name updates that list instead of failing. Adding articles
 in a batch isn't all-or-nothing: if one fails, the ones before it are kept.
 Deleting an entry succeeded even with the wrong list id in the URL.
+Clearing a list's description only works if the name is sent with it.
 Wikimedia's error
 responses come in several shapes (JSON, plain text, and HTML from the CDN), so
 the error parser decides the format from the body's fields rather than from
@@ -238,8 +241,6 @@ CLAUDE.md          # project context for Claude Code sessions
   registered, works only on English Wikipedia. Using it for other people means
   each person registering their own token, or the full OAuth flow listed under
   the roadmap.
-- **Lists can't be deleted yet.** The server can create lists and add or
-  remove articles, but can't delete a list or change its description.
 - **No automated tests yet.** Error handling has been checked by hand through
   the Inspector, against a live account. A test suite with mocked Wikimedia
   responses is planned ([#1](https://github.com/benJrohrer/wikipedia-reading-lists-mcp/issues/1)).
@@ -263,8 +264,10 @@ let anyone connect their own account without creating a token by hand.
 I built this project to sharpen my development skills, and to learn AI-assisted development deliberately: every design decision and its tradeoffs are mine, and Claude served as a collaborator and reviewer.
 
 - **Design came first.** Each decision was talked through in Claude Code's plan
-  mode, where it can research and discuss but not edit, and then written up by
-  me as an ADR.
+  mode, where it can research and discuss but not edit, and then written up as
+  an ADR. I wrote ADRs 0001 to 0007 myself. From ADR 0008 I'm trying a different
+  approach: Claude drafts the ADR, stops to ask me wherever it doesn't know my
+  reasoning, and I review and accept the result.
 - **Learning mode for the code.** Claude Code's Learning output style leaves
   the decisions with real tradeoffs (error handling, API behavior, data
   shapes) for me to write, and explains the code it writes itself.

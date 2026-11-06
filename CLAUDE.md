@@ -28,6 +28,12 @@ reading list saved in the user's Wikipedia account.
   call the Inspector directly. Add `--cli --method tools/call --tool-name <name>`
   after `inspector` to call a tool from the terminal:
   `npx @modelcontextprotocol/inspector -e WIKIMEDIA_ACCESS_TOKEN=notarealtoken uv run --directory "$PWD" python src/wikipedia_reading_lists_mcp/server.py`
+- Pass tool arguments in the Inspector's CLI mode with `--tool-arg key=value`,
+  and put `--` before the server command, because `--tool-arg` otherwise takes
+  it as another argument. Values are parsed as JSON, so
+  `--tool-arg 'description=""'` sends an empty string, which the Inspector's
+  form can't do:
+  `npx @modelcontextprotocol/inspector --cli --method tools/call --tool-name update_list --tool-arg list_id=<id> --tool-arg 'description=""' -- uv run --directory "$PWD" python src/wikipedia_reading_lists_mcp/server.py`
 
 ## Conventions
 
