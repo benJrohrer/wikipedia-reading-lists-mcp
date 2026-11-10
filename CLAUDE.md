@@ -9,9 +9,21 @@ reading list saved in the user's Wikipedia account.
 - Python, managed with uv. Dependencies live in `pyproject.toml`; exact
   versions are pinned in `uv.lock`.
 - MCP Python SDK (`mcp[cli]`).
-- Code lives in `src/wikipedia_reading_lists_mcp/`:
-  - `server.py`: the MCP server and its tools/resources
-  - `wikimedia.py`: the HTTP client and Wikimedia API calls
+- Code lives in `src/wikipedia_reading_lists_mcp/`, in two layers. Nothing in
+  the API layer imports `mcp` or knows tool names.
+  - MCP layer:
+    - `server.py`: the MCP server and its tools/resources
+    - `tool_errors.py`: error hints and the decorator that turns
+      `WikimediaAPIError` into `ToolError`
+  - API layer:
+    - `wikimedia.py`: Wikimedia API calls (one function per operation)
+    - `http_client.py`: the HTTP client, auth, error parsing, and rate-limit
+      retries. Call its verb helpers through the module (`http_client.get`).
+    - `errors.py`: `WikimediaAPIError` and its subclasses
+    - `models.py`: TypedDicts for tool inputs and results
+- `server.py` and `wikimedia.py` also run as scripts, so imports within the
+  package are absolute. Don't name a module after a stdlib one (`http.py`,
+  `types.py`): the script's folder comes first on `sys.path` and would shadow it.
 - Design decisions are recorded as ADRs in `docs/decisions/`.
 - Project status, next steps, and a dated progress log live in `docs/ROADMAP.md`.
   Individual work items are GitHub issues; the roadmap links to them rather

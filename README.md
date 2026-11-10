@@ -63,20 +63,29 @@ which tool fits a request.
 flowchart LR
     C["MCP client<br/>(Claude Code, Claude Desktop)"]
     subgraph S["This server (local process)"]
-        T["server.py<br/>MCP tools"]
-        W["wikimedia.py<br/>HTTP client"]
+        subgraph M["MCP layer"]
+            T["server.py<br/>MCP tools"]
+            E["tool_errors.py<br/>error hints"]
+        end
+        subgraph A["API layer"]
+            W["wikimedia.py<br/>API calls"]
+            H["http_client.py<br/>HTTP client"]
+        end
     end
     API["Wikipedia REST API<br/>/api/rest_v1/data/lists/"]
     C -- "stdio (JSON-RPC)" --> T
+    T --> E
     T --> W
-    W -- "HTTPS + OAuth 2.0 bearer token" --> API
+    W --> H
+    H -- "HTTPS + OAuth 2.0 bearer token" --> API
 ```
 
 - **Transport:** the client starts the server as a child process and talks to
   it over stdin and stdout. Nothing listens on a network port.
-- **Two layers:** `wikimedia.py` knows about HTTP and Wikimedia's API and
-  nothing about MCP. `server.py` defines the tools and nothing about HTTP. The
-  boundary between them is one exception type, `WikimediaAPIError`.
+- **Two layers:** the API layer (`wikimedia.py`, `http_client.py`, `errors.py`,
+  `models.py`) knows about HTTP and Wikimedia's API and nothing about MCP. The
+  MCP layer (`server.py`, `tool_errors.py`) defines the tools and nothing about
+  HTTP. The boundary between them is one exception type, `WikimediaAPIError`.
 - **One shared client:** the server's lifespan opens a single `httpx2` client
   at startup and closes it on shutdown, so every tool call reuses the same
   connections ([ADR 0004](docs/decisions/0004-share-one-http-client-through-server-lifespan.md)).
@@ -230,8 +239,12 @@ Conventions:
 
 ```
 src/wikipedia_reading_lists_mcp/
-    server.py      # MCP server: tools, error-to-ToolError decorator, hints
-    wikimedia.py   # HTTP client, auth, pagination, Wikimedia error parsing
+    server.py      # MCP server: tools, lifespan, entry point
+    tool_errors.py # error hints and the error-to-ToolError decorator
+    wikimedia.py   # Wikimedia API calls, pagination
+    http_client.py # HTTP client, auth, error parsing, rate-limit retries
+    errors.py      # WikimediaAPIError and subclasses
+    models.py      # TypedDicts for tool inputs and results
 docs/
     ROADMAP.md     # current status, next steps, dated progress log
     decisions/     # architecture decision records
