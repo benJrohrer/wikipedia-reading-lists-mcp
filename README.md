@@ -103,6 +103,7 @@ considered, and the tradeoffs.
 | [0006](docs/decisions/0006-filter-duplicate-names-when-creating-lists.md) | Leave out existing names when creating lists, and return them to the model | The API silently overwrites the description of a list with the same name. Filtering on the server protects the user's data without relying on the model, and keeps the tool's non-destructive annotation accurate |
 | [0007](docs/decisions/0007-delete-entries-from-one-list-with-a-pre-check.md) | Delete entries from one list per call, and check each id against that list first | The DELETE endpoint doesn't reliably check the list in its URL, so the server does. One list per call means one lookup, and stopping at the first failure keeps the record of what was already deleted |
 | [0008](docs/decisions/0008-update-lists-with-optional-fields.md) | Make the name and description optional when updating a list, and look up the name only to clear a description | The API rejects an empty description unless a name comes with it. Looking up the name on the server keeps that quirk out of the tool, so clearing a description can't rename a list by mistake. Duplicate names are left to the API, which rejects them without changing anything |
+| [0009](docs/decisions/0009-retry-short-rate-limits-in-the-server.md) | Retry short rate limits in the server with tenacity, and pass longer ones to the model | Waiting out a short limit works in any client and uses Wikimedia's exact wait instead of the model's guess. Waits over 30 s, or past a per-request time budget, go to the model with the wait time and a hint that the request had no effect |
 
 Some things learned along the way are recorded in the ADRs too. Bearer-token
 writes need no CSRF token. Calling setup twice is harmless. Creating a list
@@ -110,6 +111,9 @@ with an existing name updates that list instead of failing. Adding articles
 in a batch isn't all-or-nothing: if one fails, the ones before it are kept.
 Deleting an entry succeeded even with the wrong list id in the URL.
 Clearing a list's description only works if the name is sent with it.
+Rate limits are per account, so the Wikipedia app downloading saved articles
+can rate-limit the server. Wikimedia's 429 responses give `Retry-After` in
+seconds.
 Wikimedia's error
 responses come in several shapes (JSON, plain text, and HTML from the CDN), so
 the error parser decides the format from the body's fields rather than from
