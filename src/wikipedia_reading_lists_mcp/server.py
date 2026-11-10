@@ -14,7 +14,7 @@ from mcp.types import ToolAnnotations
 # Absolute import: MCP clients may run this file as a script, where relative
 # imports fail.
 from wikipedia_reading_lists_mcp.errors import WikimediaAPIError
-from wikipedia_reading_lists_mcp.wikimedia import (
+from wikipedia_reading_lists_mcp.models import (
     CreateEntryResult,
     CreateListsResult,
     DeleteEntriesResult,
@@ -22,6 +22,8 @@ from wikipedia_reading_lists_mcp.wikimedia import (
     FetchedEntryResult,
     ListResult,
     ListSpec,
+)
+from wikipedia_reading_lists_mcp.wikimedia import (
     create_entries,
     create_lists,
     delete_entries,
