@@ -134,6 +134,19 @@ ERROR_HINTS: dict[str, str] = {
         "When updating a list, the name field, if included, must be non-empty. Omit "
         "the name to keep the current name."
     ),
+    "retry-after": (
+        "The connection is rate-limited. The server already retried, or decided the "
+        "wait was too long to handle on its own. The request that produced the rate "
+        "limit error wasn't carried out, so there is no need to check whether it went "
+        "through. This error message may contain a retry-after note as a time to "
+        "wait in seconds. If it does, and you have the ability to wait (e.g. by "
+        "calling `sleep`), you can wait that long and try again. If it does not, or "
+        "you don't have the ability to wait, tell the user to try again after the "
+        "given wait time if there is one, or after a few minutes if there isn't. Rate "
+        "limits are per account, so if the user is using the API elsewhere (such as "
+        "through the mobile app which generates API calls for downloading saved "
+        "articles), that usage may be impacting the rate limits."
+    ),
     "timeout": (
         "The connection timed out. Retry once; if it fails again, tell the user to "
         "check the internet connection."
@@ -148,7 +161,6 @@ ERROR_HINTS: dict[str, str] = {
         "Tell the user to check if their token has the 'Access private information' "
         "grant."
     ),
-    "429": "The connection is rate-limited. Wait and retry.",
 }
 
 
